@@ -17,15 +17,15 @@ export default function FloatingBottomBar({
   return (
     <View style={styles.container} pointerEvents="box-none">
       <View style={styles.bar}>
-        <Pressable onPress={onPressProfile} style={styles.sideButton} hitSlop={12}>
+        <Pressable onPress={onPressProfile} style={styles.sideButton} hitSlop={12} accessibilityRole="button" accessibilityLabel="Open profile">
           <Ionicons name="person-outline" size={24} color={colors.textPrimary} />
         </Pressable>
 
-        <Pressable onPress={onPressCreate} style={styles.plusButton} hitSlop={12}>
+        <Pressable onPress={onPressCreate} style={styles.plusButton} hitSlop={12} accessibilityRole="button" accessibilityLabel="Create new echo">
           <Ionicons name="add" size={28} color={colors.black} />
         </Pressable>
 
-        <Pressable onPress={onPressMenu} style={styles.sideButton} hitSlop={12}>
+        <Pressable onPress={onPressMenu} style={styles.sideButton} hitSlop={12} accessibilityRole="button" accessibilityLabel="Open menu">
           <Ionicons name="menu" size={24} color={colors.textPrimary} />
         </Pressable>
       </View>

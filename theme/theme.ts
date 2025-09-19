@@ -2,11 +2,12 @@ export const colors = {
   background: "#000000",
   surface: "#121212",
   surfaceBorder: "#2B2B2B",
-  floatingBarBg: "#2B2B2B",
+  floatingBarBg: "rgb(50, 50, 50)",
   textPrimary: "#FFFFFF",
   textSecondary: "#A3A3A3",
   white: "#FFFFFF",
   black: "#000000",
+  lightOverlay: "rgba(255,255,255,0.10)",
 };
 
 export const spacing = {
@@ -40,7 +41,8 @@ export const sizes = {
     topExtra: 20,
     bottomPadding: 120,
     itemSpacing: 16,
-    cardMinHeight: 150,
+    cardMinHeight: 140,
+    cardBlurHeight: 60,
   },
 };
 

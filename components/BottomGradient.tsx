@@ -3,7 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { sizes } from "../theme/theme";
+import { sizes, colors } from "../theme/theme";
 
 // Approximate vertical size of the floating bar area to align the gradient's top edge
 const FLOATING_BAR_HEIGHT = sizes.floatingBar.height;
@@ -24,7 +24,7 @@ export default function BottomGradient() {
         style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: blurHeight }}
       />
       <LinearGradient
-        colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.8)", "#000000"]}
+        colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.8)", colors.background]}
         locations={[0, 0.65, 1]}
         style={StyleSheet.absoluteFill}
       />
