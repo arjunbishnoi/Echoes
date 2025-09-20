@@ -46,7 +46,6 @@ function TimeCapsuleCardInner({ title, subtitle, style, imageUrl, id, onPress }:
         source={imageUrl ? { uri: imageUrl } : undefined}
         resizeMode="cover"
         style={styles.image}
-        imageStyle={styles.imageBorder}
       >
         <View style={{ flex: 1 }} />
         <View style={styles.blurContainer}>
@@ -77,9 +76,6 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     flex: 1,
-  },
-  imageBorder: {
-    borderRadius: radii.card,
   },
   blurContainer: {
     height: sizes.list.cardBlurHeight,

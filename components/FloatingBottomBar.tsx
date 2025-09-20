@@ -1,5 +1,7 @@
 import React from "react";
 import { View, Pressable, StyleSheet } from "react-native";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import useDrawerPair from "../hooks/useDrawerPair";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radii, sizes } from "../theme/theme";
 
@@ -14,6 +16,33 @@ export default function FloatingBottomBar({
   onPressCreate,
   onPressMenu,
 }: Props) {
+  const { left: leftProgress, right: rightProgress } = useDrawerPair();
+
+  const plusAnimated = useAnimatedStyle(() => {
+    const lp = leftProgress?.value ?? 0;
+    const rp = rightProgress?.value ?? 0;
+    // Move left when left drawer opens, right when right drawer opens
+    const dx = (-lp * 140) + (rp * 140); // travel farther into side strips
+    const p = Math.max(lp, rp);
+    const targetH = sizes.floatingBar.height;
+    const startH = sizes.floatingBar.plusHeight;
+    const height = startH + (targetH - startH) * p;
+    const borderRadius = height / 2;
+    const scale = 1 - p * 0.05;
+    return {
+      transform: [{ translateX: dx }, { scale }],
+      height,
+      borderRadius,
+      paddingHorizontal: sizes.floatingBar.plusPaddingHorizontal + (18 - sizes.floatingBar.plusPaddingHorizontal) * p,
+    };
+  });
+
+  const iconShift = useAnimatedStyle(() => {
+    const lp = leftProgress?.value ?? 0;
+    const rp = rightProgress?.value ?? 0;
+    const ix = (-lp + rp) * 10; // small extra nudge for the icon only
+    return { transform: [{ translateX: ix }] };
+  });
   return (
     <View style={styles.container} pointerEvents="box-none">
       <View style={styles.bar}>
@@ -21,9 +50,13 @@ export default function FloatingBottomBar({
           <Ionicons name="person-outline" size={24} color={colors.textPrimary} />
         </Pressable>
 
-        <Pressable onPress={onPressCreate} style={styles.plusButton} hitSlop={12} accessibilityRole="button" accessibilityLabel="Create new echo">
-          <Ionicons name="add" size={28} color={colors.black} />
-        </Pressable>
+        <Animated.View style={[styles.plusButton, plusAnimated]}>
+          <Pressable onPress={onPressCreate} hitSlop={12} accessibilityRole="button" accessibilityLabel="Create new echo">
+            <Animated.View style={iconShift}>
+              <Ionicons name="add" size={28} color={colors.black} />
+            </Animated.View>
+          </Pressable>
+        </Animated.View>
 
         <Pressable onPress={onPressMenu} style={styles.sideButton} hitSlop={12} accessibilityRole="button" accessibilityLabel="Open menu">
           <Ionicons name="menu" size={24} color={colors.textPrimary} />
@@ -47,7 +80,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: colors.floatingBarBg,
     paddingHorizontal: 16,
-    paddingVertical: 5,
+    paddingVertical: 0,
+    height: sizes.floatingBar.height,
     borderRadius: radii.pill,
     width: sizes.floatingBar.widthPercent,
     shadowColor: colors.black,

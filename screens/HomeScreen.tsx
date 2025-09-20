@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
-import { View, StyleSheet, FlatList, RefreshControl, Platform, Text } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View, StyleSheet, FlatList, RefreshControl, Platform } from "react-native";
+import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import FloatingBottomBar from "../components/FloatingBottomBar";
 import TimeCapsuleCard from "../components/TimeCapsuleCard";
 import BottomGradient from "../components/BottomGradient";
@@ -12,13 +12,17 @@ import { useRefresh } from "../hooks/useRefresh";
 import { useRouter } from "expo-router";
 import { Drawer } from "react-native-drawer-layout";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
-import Animated from "react-native-reanimated";
 import { GestureConfig } from "../config/ui";
+import LeftDrawerContent from "../components/LeftDrawerContent";
+import RightDrawerContent from "../components/RightDrawerContent";
+import DrawerBlurOverlay from "../components/DrawerBlurOverlay";
+import { RightDrawerProgressProvider } from "../components/RightDrawerProgress";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { refreshing, onRefresh } = useRefresh();
   const router = useRouter();
+  const refreshExtraOffset = spacing.lg; // tweak this to move the refresh icon
   const [leftOpen, setLeftOpen] = React.useState(false);
   const [rightOpen, setRightOpen] = React.useState(false);
   // rely only on open state for press disabling
@@ -37,72 +41,74 @@ export default function HomeScreen() {
   return (
     <Drawer
       open={rightOpen}
-      onOpen={() => setRightOpen(true)}
-      onClose={() => setRightOpen(false)}
+      onOpen={() => { setRightOpen(true); }}
+      onClose={() => { setRightOpen(false); }}
       drawerPosition="right"
       drawerType="slide"
-      drawerStyle={{ backgroundColor: colors.surface }}
+      drawerStyle={{ backgroundColor: "#000000" }}
+      overlayStyle={{ backgroundColor: "rgba(242,242,242,0.18)" }}
       swipeEdgeWidth={GestureConfig.swipeEdgeWidth}
       swipeMinDistance={GestureConfig.swipeMinDistance}
       swipeMinVelocity={GestureConfig.swipeMinVelocity}
       swipeEnabled={!leftOpen}
-      renderDrawerContent={() => (
-        <View style={[styles.drawer, { paddingTop: insets.top, alignItems: "flex-end" }]}> 
-          <Text style={styles.drawerTitle}>Menu</Text>
-        </View>
-      )}
+      renderDrawerContent={() => (<RightDrawerContent insetTop={insets.top} />)}
     >
-    <Drawer
-      open={leftOpen}
-      onOpen={() => setLeftOpen(true)}
-      onClose={() => setLeftOpen(false)}
-      drawerPosition="left"
-      drawerType="slide"
-      drawerStyle={{ backgroundColor: colors.surface }}
-      swipeEdgeWidth={GestureConfig.swipeEdgeWidth}
-      swipeMinDistance={GestureConfig.swipeMinDistance}
-      swipeMinVelocity={GestureConfig.swipeMinVelocity}
-      swipeEnabled={!rightOpen}
-      renderDrawerContent={() => (
-        <View style={[styles.drawer, { paddingTop: insets.top }]}> 
-          <Text style={styles.drawerTitle}>Profile</Text>
-        </View>
-      )}
-    >
-    <View style={[styles.container, { paddingTop: insets.top }] }>
-      <FlatList
-        data={dummyCapsules}
-        keyExtractor={keyExtractor}
-        contentContainerStyle={[
-          styles.listContent,
-        ]}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.textPrimary}
-            titleColor={colors.textPrimary}
-            progressBackgroundColor={colors.surface}
-            colors={[colors.textPrimary]}
-            progressViewOffset={Platform.OS === "android" ? insets.top + 16 : 0}
-          />
-        }
-        ItemSeparatorComponent={ListSeparator}
-        renderItem={renderItem}
-        removeClippedSubviews
-        initialNumToRender={6}
-        windowSize={11}
-        maxToRenderPerBatch={8}
-        updateCellsBatchingPeriod={16}
-      />
-      <BottomGradient />
-      <FloatingBottomBar
-        onPressProfile={() => setLeftOpen(true)}
-        onPressCreate={() => router.push("/create")}
-        onPressMenu={() => setRightOpen(true)}
-      />
+    <RightDrawerProgressProvider>
+    <View style={{ flex: 1 }}>
+      <Drawer
+        open={leftOpen}
+        onOpen={() => { setLeftOpen(true); }}
+        onClose={() => { setLeftOpen(false); }}
+        drawerPosition="left"
+        drawerType="slide"
+        drawerStyle={{ backgroundColor: "#000000" }}
+        overlayStyle={{ backgroundColor: "rgba(242,242,242,0.18)" }}
+        swipeEdgeWidth={GestureConfig.swipeEdgeWidth}
+        swipeMinDistance={GestureConfig.swipeMinDistance}
+        swipeMinVelocity={GestureConfig.swipeMinVelocity}
+        swipeEnabled={!rightOpen}
+      renderDrawerContent={() => (<LeftDrawerContent insetTop={insets.top} />)}
+      >
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <FlatList
+          data={dummyCapsules}
+          keyExtractor={keyExtractor}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingTop: spacing.lg },
+          ]}
+          contentInsetAdjustmentBehavior="never"
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.textPrimary}
+              titleColor={colors.textPrimary}
+              progressBackgroundColor={colors.surface}
+              colors={[colors.textPrimary]}
+              progressViewOffset={refreshExtraOffset}
+            />
+          }
+          ItemSeparatorComponent={ListSeparator}
+          renderItem={renderItem}
+          removeClippedSubviews
+          initialNumToRender={6}
+          windowSize={11}
+          maxToRenderPerBatch={8}
+          updateCellsBatchingPeriod={16}
+        />
+        <DrawerBlurOverlay maxOpacity={1} blurIntensity={20} />
+        <BottomGradient />
+        <FloatingBottomBar
+          onPressProfile={() => setLeftOpen(true)}
+          onPressCreate={() => router.push("/create")}
+          onPressMenu={() => setRightOpen(true)}
+        />
+      </SafeAreaView>
+      </Drawer>
+      <DrawerBlurOverlay maxOpacity={1} blurIntensity={20} />
     </View>
-    </Drawer>
+    </RightDrawerProgressProvider>
     </Drawer>
   );
 }
