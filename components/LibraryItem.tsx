@@ -1,8 +1,12 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, type StyleProp, type ViewStyle } from "react-native";
+import { View, Text, StyleSheet, Image, Pressable, Platform, type StyleProp, type ViewStyle } from "react-native";
+import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radii } from "../theme/theme";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { GestureConfig } from "../config/ui";
+import { runOnJS } from "react-native-reanimated";
 
 type Props = {
   title: string;
@@ -10,9 +14,11 @@ type Props = {
   gradientColors?: [string, string];
   solidColor?: string;
   locked?: boolean;
+  completed?: boolean;
   progress?: number; // 0..1
   textColor?: string;
   style?: StyleProp<ViewStyle>;
+  onPress?: () => void;
 };
 
 function LibraryItem({
@@ -21,10 +27,24 @@ function LibraryItem({
   gradientColors,
   solidColor,
   locked,
+  completed,
   progress = 0,
   textColor,
   style,
+  onPress,
 }: Props) {
+  const tapGesture = React.useMemo(() => {
+    return Gesture.Tap()
+      .maxDeltaX(GestureConfig.tapMaxDeltaX)
+      .maxDeltaY(GestureConfig.tapMaxDeltaY)
+      .onEnd((_evt, success) => {
+        'worklet';
+        if (success && onPress) {
+          runOnJS(onPress)();
+        }
+      });
+  }, [onPress]);
+
   const content = (
     <View style={styles.inner}>
       <View style={styles.leftCluster}>
@@ -33,11 +53,6 @@ function LibraryItem({
         ) : (
           <View style={[styles.thumbnail, { backgroundColor: "rgba(255,255,255,0.18)" }]} />
         )}
-        {locked ? (
-          <View style={styles.lockBadge}>
-            <Ionicons name="lock-closed-outline" size={16} color={colors.white} />
-          </View>
-        ) : null}
       </View>
       <View style={styles.centerCluster}>
         <Text style={[styles.title, { color: textColor ?? colors.white }]} numberOfLines={1}>
@@ -51,18 +66,38 @@ function LibraryItem({
     </View>
   );
 
-  if (gradientColors) {
-    return (
-      <LinearGradient colors={gradientColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.container, style]}>
-        {content}
-      </LinearGradient>
-    );
-  }
-
   return (
-    <View style={[styles.container, { backgroundColor: solidColor ?? colors.surface }, style]}>
-      {content}
-    </View>
+    <GestureDetector gesture={tapGesture}>
+      <Pressable
+        accessibilityRole={onPress ? "button" : undefined}
+        android_ripple={onPress && Platform.OS === "android" ? { color: "rgba(255,255,255,0.12)" } : undefined}
+        style={[styles.container, style]}
+      >
+        {/* Accentified background: blurred cover image or solid fallback */}
+        {thumbnailUri ? (
+          <>
+            <Image source={{ uri: thumbnailUri }} style={[StyleSheet.absoluteFill, { opacity: 1 }]} resizeMode="cover" />
+            <BlurView intensity={90} style={StyleSheet.absoluteFill} />
+            <View style={[StyleSheet.absoluteFill, { }]} />
+          </>
+        ) : gradientColors ? (
+          <LinearGradient colors={gradientColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: solidColor ?? colors.surface }]} />
+        )}
+        {content}
+        {locked ? (
+          <View style={styles.statusBadgeRight}>
+            <Ionicons name="lock-closed" size={16} color={colors.white} />
+          </View>
+        ) : null}
+        {!locked && completed ? (
+          <View style={styles.statusBadgeRight}>
+            <Ionicons name="checkmark-sharp" size={16} color={colors.white} />
+          </View>
+        ) : null}
+      </Pressable>
+    </GestureDetector>
   );
 }
 
@@ -91,15 +126,17 @@ const styles = StyleSheet.create({
   thumbnail: {
     width: THUMBNAIL_SIZE,
     height: THUMBNAIL_SIZE,
-    borderRadius: 12,
+    borderRadius: radii.md,
     backgroundColor: "#222",
   },
-  lockBadge: {
-    marginLeft: 8,
+  statusBadgeRight: {
+    position: "absolute",
+    top: 8,
+    right: 10,
     width: 24,
     height: 24,
-    borderRadius: 6,
-    backgroundColor: "rgba(88, 101, 242, 0.9)",
+    borderRadius: radii.sm,
+    backgroundColor: "rgba(255,255,255,0.22)",
     alignItems: "center",
     justifyContent: "center",
   },

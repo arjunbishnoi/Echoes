@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, useWindowDimensions } from "react-native";
-import Animated, { useAnimatedStyle, interpolate } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, interpolate, withSpring, withTiming, withSequence, useSharedValue } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { useDrawerProgress } from "react-native-drawer-layout";
 import { colors, sizes } from "../theme/theme";
@@ -19,11 +19,15 @@ export default function PlusToSideStrip() {
   const endY = bottomCenterY; // keep level; adjust if needed
 
   const animatedStyle = useAnimatedStyle(() => {
-    const x = interpolate(progress.value, [0, 1], [startX, endX]);
-    const y = interpolate(progress.value, [0, 1], [startY, endY]);
-    const size = interpolate(progress.value, [0, 1], [plusSize, circleSize]);
+    const t = progress.value;
+    const x = interpolate(t, [0, 1], [startX, endX]);
+    const y = interpolate(t, [0, 1], [startY, endY]);
+    const size = interpolate(t, [0, 1], [plusSize, circleSize]);
     return {
-      transform: [{ translateX: x - size / 2 }, { translateY: y - size / 2 }],
+      transform: [
+        { translateX: Math.round(x - size / 2) },
+        { translateY: Math.round(y - size / 2) },
+      ],
       width: size,
       height: size,
       borderRadius: size / 2,
@@ -47,5 +51,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 });
+
+
+
 
 

@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Pressable, Text, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import BottomBarBackground from "./BottomBarBackground";
 import { useRouter } from "expo-router";
 import { colors, radii, sizes } from "../theme/theme";
 
@@ -13,6 +14,7 @@ export default function ProfileBottomBar({ onPressSettings }: Props) {
   return (
     <View style={styles.container} pointerEvents="box-none">
       <View style={styles.bar}>
+        <BottomBarBackground />
         <View style={styles.profileLeft}>
           <Image source={{ uri: "https://i.pravatar.cc/100?img=12" }} style={styles.avatar} />
           <Text style={styles.name}>Arjun Bishnoi</Text>
@@ -38,9 +40,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: colors.floatingBarBg,
+    backgroundColor: "transparent",
     height: sizes.floatingBar.height,
     borderRadius: radii.pill,
+    // match FloatingBottomBar width for consistent content width target
     alignSelf: "stretch",
     marginHorizontal: 16,
     paddingLeft: 0,

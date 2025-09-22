@@ -8,8 +8,12 @@ import { colors, spacing } from "../../theme/theme";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 export default function EchoDetail() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const capsule = useMemo(() => dummyCapsules.find(c => c.id === id), [id]);
+  const { id, title: titleParam, imageUrl: imageParam, subtitle: subtitleParam } = useLocalSearchParams<{ id: string; title?: string; imageUrl?: string; subtitle?: string }>();
+  const capsule = useMemo(() => {
+    const found = dummyCapsules.find(c => c.id === id);
+    if (found) return found;
+    return { id: String(id), title: titleParam ?? "Echo", subtitle: subtitleParam ?? "", imageUrl: typeof imageParam === "string" ? imageParam : undefined } as any;
+  }, [id, titleParam, imageParam, subtitleParam]);
   const sharedTag = `echo-image-${id}`;
 
   if (!capsule) {

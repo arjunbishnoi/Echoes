@@ -1,7 +1,8 @@
 import React, { useCallback } from "react";
-import { View, StyleSheet, FlatList, RefreshControl, Platform } from "react-native";
+import { View, StyleSheet, FlatList, RefreshControl, Platform, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import FloatingBottomBar from "../components/FloatingBottomBar";
+import SideStripCreateProxy from "../components/SideStripCreateProxy";
 import TimeCapsuleCard from "../components/TimeCapsuleCard";
 import BottomGradient from "../components/BottomGradient";
 import ListSeparator from "../components/ListSeparator";
@@ -16,15 +17,20 @@ import { GestureConfig } from "../config/ui";
 import LeftDrawerContent from "../components/LeftDrawerContent";
 import RightDrawerContent from "../components/RightDrawerContent";
 import DrawerBlurOverlay from "../components/DrawerBlurOverlay";
+import PlusToSideStrip from "../components/PlusToSideStrip";
 import { RightDrawerProgressProvider } from "../components/RightDrawerProgress";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
   const { refreshing, onRefresh } = useRefresh();
   const router = useRouter();
   const refreshExtraOffset = spacing.lg; // tweak this to move the refresh icon
   const [leftOpen, setLeftOpen] = React.useState(false);
   const [rightOpen, setRightOpen] = React.useState(false);
+  const halfWidth = Math.floor(screenWidth / 2);
+  const leftSwipeWidth = halfWidth; // left half
+  const rightSwipeWidth = Math.max(0, halfWidth - 1); // right half minus 1px to avoid overlap
   // rely only on open state for press disabling
   // no extra overlay gesture; rely on Drawer gestures for stability
   const renderItem = useCallback(({ item }: { item: Capsule }) => (
@@ -46,8 +52,8 @@ export default function HomeScreen() {
       drawerPosition="right"
       drawerType="slide"
       drawerStyle={{ backgroundColor: "#000000" }}
-      overlayStyle={{ backgroundColor: "rgba(242,242,242,0.18)" }}
-      swipeEdgeWidth={GestureConfig.swipeEdgeWidth}
+      overlayStyle={{ backgroundColor: "transparent" }}
+      swipeEdgeWidth={rightSwipeWidth}
       swipeMinDistance={GestureConfig.swipeMinDistance}
       swipeMinVelocity={GestureConfig.swipeMinVelocity}
       swipeEnabled={!leftOpen}
@@ -62,8 +68,8 @@ export default function HomeScreen() {
         drawerPosition="left"
         drawerType="slide"
         drawerStyle={{ backgroundColor: "#000000" }}
-        overlayStyle={{ backgroundColor: "rgba(242,242,242,0.18)" }}
-        swipeEdgeWidth={GestureConfig.swipeEdgeWidth}
+        overlayStyle={{ backgroundColor: "transparent" }}
+        swipeEdgeWidth={leftSwipeWidth}
         swipeMinDistance={GestureConfig.swipeMinDistance}
         swipeMinVelocity={GestureConfig.swipeMinVelocity}
         swipeEnabled={!rightOpen}
@@ -97,16 +103,21 @@ export default function HomeScreen() {
           maxToRenderPerBatch={8}
           updateCellsBatchingPeriod={16}
         />
-        <DrawerBlurOverlay maxOpacity={1} blurIntensity={20} />
+        <DrawerBlurOverlay side="right" maxOpacity={1} blurIntensity={66} />
+        <DrawerBlurOverlay maxOpacity={1} blurIntensity={66} />
         <BottomGradient />
+        {/* Animate plus to side strip with premium spring feel */}
+        <PlusToSideStrip />
         <FloatingBottomBar
           onPressProfile={() => setLeftOpen(true)}
           onPressCreate={() => router.push("/create")}
           onPressMenu={() => setRightOpen(true)}
         />
+        {/* Ensure tapping near the side strip still opens create while drawer is open */}
+        {leftOpen ? <SideStripCreateProxy side="left" onPress={() => router.push("/create")} /> : null}
+        {rightOpen ? <SideStripCreateProxy side="right" onPress={() => router.push("/create")} /> : null}
       </SafeAreaView>
       </Drawer>
-      <DrawerBlurOverlay maxOpacity={1} blurIntensity={20} />
     </View>
     </RightDrawerProgressProvider>
     </Drawer>

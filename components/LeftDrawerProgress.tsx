@@ -4,20 +4,17 @@ import { useDrawerProgress } from "react-native-drawer-layout";
 
 const Ctx = React.createContext<SharedValue<number> | null>(null);
 
-export function RightDrawerProgressProvider({ children }: { children: React.ReactNode }) {
+export function LeftDrawerProgressProvider({ children }: { children: React.ReactNode }) {
   const progress = useDrawerProgress();
   return <Ctx.Provider value={progress}>{children}</Ctx.Provider>;
 }
 
-export function useRightDrawerProgress(): SharedValue<number> {
+export function useLeftDrawerProgress(): SharedValue<number> {
   const ctx = React.useContext(Ctx);
   if (!ctx) {
-    throw new Error("useRightDrawerProgress must be used within RightDrawerProgressProvider");
+    throw new Error("useLeftDrawerProgress must be used within LeftDrawerProgressProvider");
   }
   return ctx;
 }
-
-
-
 
 
