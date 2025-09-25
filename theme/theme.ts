@@ -42,7 +42,7 @@ export const sizes = {
     bottomPadding: 120,
     itemSpacing: 16,
     cardMinHeight: 140,
-    cardBlurHeight: 80,
+    cardBlurHeight: 90,
   },
 };
 

@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import MaskedView from "@react-native-masked-view/masked-view";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
@@ -95,7 +96,12 @@ function TimeCapsuleCardInner({ title, subtitle, style, imageUrl, id, onPress, c
                 </View>
               ) : (
                 <View style={styles.privateBadge}>
-                  <Text style={styles.privateBadgeText}>Private</Text>
+                  <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+                  <View style={styles.privateBadgeOverlay} />
+                  <View style={styles.privateBadgeContent}>
+                    <Ionicons name="lock-closed" size={12} color={colors.white} style={styles.privateIcon} />
+                    <Text style={styles.privateBadgeText}>Private</Text>
+                  </View>
                 </View>
               )}
               <View style={[styles.progressWrapper, !participants || participants.length <= 1 ? styles.progressWrapperPrivate : null]}>
@@ -170,16 +176,34 @@ const styles = StyleSheet.create({
   privateBadge: {
     height: AVATAR_SIZE,
     borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: "rgba(255,255,255,0.35)",
     paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
+    overflow: "hidden",
+    backgroundColor: "rgba(0,0,0,0.12)",
+  },
+  privateBadgeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  privateIcon: {
+    marginRight: 6,
+    opacity: 0.9,
+  },
+  privateBadgeOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.lightOverlay,
   },
   privateBadgeText: {
     color: colors.textPrimary,
     fontWeight: "600",
     fontSize: 10,
+    opacity: 0.9,
   },
   progressWrapper: {
     flex: 1,

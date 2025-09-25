@@ -66,7 +66,7 @@ export default function NotificationsBottomBar({ active, onChange }: Props) {
               <Animated.View style={[styles.indicator, { width: segmentWidth }, indicatorStyle]} />
             ) : null}
             <Slot icon="people" active={propActiveIndex === 0} onPress={() => { animateToIndex(0); onChange("friendRequests"); }} segmentWidth={segmentWidth} />
-            <Slot icon="notifications" active={propActiveIndex === 1} onPress={() => { animateToIndex(1); onChange("regular"); }} segmentWidth={segmentWidth} />
+            <Slot icon="lock-closed" active={propActiveIndex === 1} onPress={() => { animateToIndex(1); onChange("regular"); }} segmentWidth={segmentWidth} />
             <Slot icon="ellipse" active={propActiveIndex === 2} onPress={() => { animateToIndex(2); onChange("all"); }} segmentWidth={segmentWidth} />
           </View>
         </View>

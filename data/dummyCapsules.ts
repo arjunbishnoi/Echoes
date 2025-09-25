@@ -25,7 +25,7 @@ export const dummyCapsules: Capsule[] = Array.from({ length: 20 }, (_, index) =>
   // Deterministic pseudo-random count between 2 and 4 for shared echoes
   const participantCount = 2 + ((number * 5) % 3); // 2..4
   const participants = isShared
-    ? Array.from({ length: participantCount }, (_, i) => `https://i.pravatar.cc/100?img=${(number * (i + 3) * 5) % 70}`)
+    ? Array.from({ length: participantCount }, (_, i) => `https://picsum.photos/seed/collab2-${number}-${i}/100/100?v=2`)
     : [];
 
   return {

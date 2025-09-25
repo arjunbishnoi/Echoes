@@ -42,7 +42,6 @@ export default function HomeScreen() {
       imageUrl={item.imageUrl}
       creatorAvatarUri={`https://i.pravatar.cc/100?img=${(Number(item.id) * 7) % 70}`}
       progress={((Number(item.id) * 3) % 10) / 10}
-      remainingLabel={`${12 + (Number(item.id) % 5)} days left`}
       participants={item.participants}
       style={{ minHeight: sizes.list.cardMinHeight }}
       onPress={leftOpen || rightOpen ? undefined : () => router.push({ pathname: "/echo/[id]", params: { id: item.id } })}
