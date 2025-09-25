@@ -12,18 +12,16 @@ import { colors, radii, sizes } from "../theme/theme";
 type Props = {
   id: string;
   title: string;
-  subtitle?: string;
   style?: StyleProp<ViewStyle>;
   imageUrl?: string;
   onPress?: () => void;
-  // New UI elements for creator + progress + remaining time
-  creatorAvatarUri?: string;
+  // New UI elements for progress + remaining time
   progress?: number; // 0..1 time elapsed
   remainingLabel?: string; // e.g., "12 days left"
   participants?: string[]; // list of avatar URIs for shared echoes; empty/undefined for private
 };
 
-function TimeCapsuleCardInner({ title, subtitle, style, imageUrl, id, onPress, creatorAvatarUri, progress = 0, remainingLabel, participants }: Props) {
+function TimeCapsuleCardInner({ title, style, imageUrl, id, onPress, progress = 0, remainingLabel, participants }: Props) {
   const sharedTag = id ? `echo-image-${id}` : undefined;
   const tapGesture = useMemo(() => (
     Gesture.Tap()
@@ -152,10 +150,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 8,
-  },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 12,
   },
   metaRow: {
     flexDirection: "row",

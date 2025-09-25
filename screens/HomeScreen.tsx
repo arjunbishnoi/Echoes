@@ -16,6 +16,7 @@ import TimeCapsuleCard from "../components/TimeCapsuleCard";
 import { GestureConfig } from "../config/ui";
 import { dummyCapsules } from "../data/dummyCapsules";
 import { useRefresh } from "../hooks/useRefresh";
+import { computeCapsuleProgressPercent } from "../lib/echoes";
 import { colors, sizes, spacing } from "../theme/theme";
 import type { Capsule } from "../types/capsule";
 
@@ -37,11 +38,8 @@ export default function HomeScreen() {
     <TimeCapsuleCard
       id={item.id}
       title={item.title}
-      // subtitle removed from visual per new design; keep prop for future
-      // subtitle={item.subtitle}
       imageUrl={item.imageUrl}
-      creatorAvatarUri={`https://i.pravatar.cc/100?img=${(Number(item.id) * 7) % 70}`}
-      progress={((Number(item.id) * 3) % 10) / 10}
+      progress={computeCapsuleProgressPercent(item)}
       participants={item.participants}
       style={{ minHeight: sizes.list.cardMinHeight }}
       onPress={leftOpen || rightOpen ? undefined : () => router.push({ pathname: "/echo/[id]", params: { id: item.id } })}

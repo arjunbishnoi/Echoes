@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { dummyCapsules } from "../data/dummyCapsules";
 import { searchCapsules } from "../lib/echoes";
-import { sizes, spacing } from "../theme/theme";
+import { colors, sizes, spacing } from "../theme/theme";
 import type { NotifKey } from "../types/notifications";
 import BottomGradient from "./BottomGradient";
 import { ContentWidth, DrawerScroll } from "./DrawerContentLayout";
@@ -53,8 +53,7 @@ export default function LeftDrawerContent({ insetTop }: LeftDrawerContentProps) 
           )}
         </ContentWidth>
       </DrawerScroll>
-      {/* Top overlay/blur mirrored from right drawer, rendered above content, with safe area blackout */
-      }
+      {/* Top overlay/blur mirrored from right drawer, rendered above content, with safe area blackout */}
       <TopGradient safeTop={top - 10} />
       {/* Top bar: search + Cancel like right drawer */}
       <View style={{ position: "absolute", left: 16, right: 16, top: topBarOffset }}>
@@ -75,11 +74,11 @@ export default function LeftDrawerContent({ insetTop }: LeftDrawerContentProps) 
               onPress={() => { setQuery(""); setIsEditing(false); }}
               style={{ paddingHorizontal: 8, paddingVertical: 8 }}
             >
-              <Text style={{ color: "#ffffff", fontWeight: "700" }}>Cancel</Text>
+              <Text style={{ color: colors.textPrimary, fontWeight: "700" }}>Cancel</Text>
             </Pressable>
           ) : (
             <Pressable accessibilityRole="button" hitSlop={12} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="ellipsis-vertical" size={20} color="#ffffff" />
+              <Ionicons name="ellipsis-vertical" size={20} color={colors.textPrimary} />
             </Pressable>
           )}
         </View>
@@ -202,7 +201,7 @@ const MemoQueryResults = React.memo(QueryResults);
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000000",
+    backgroundColor: colors.background,
     paddingHorizontal: 0,
   },
   // Scroll area spans full drawer width; content is constrained to bar width
@@ -214,7 +213,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   sectionTitle: {
-    color: "#ffffff",
+    color: colors.textPrimary,
     fontSize: 20,
     fontWeight: "700",
   },
