@@ -1,28 +1,35 @@
-import React from "react";
-import { View, Pressable, Text, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import BottomBarBackground from "./BottomBarBackground";
 import { useRouter } from "expo-router";
+import React from "react";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radii, sizes } from "../theme/theme";
+import BottomBarBackground from "./BottomBarBackground";
 
 type Props = {
   onPressSettings?: () => void;
+  showSettings?: boolean;
+  trailingAccessory?: React.ReactNode;
 };
 
-export default function ProfileBottomBar({ onPressSettings }: Props) {
+export default function ProfileBottomBar({ onPressSettings, showSettings = true, trailingAccessory }: Props) {
   const router = useRouter();
   return (
     <View style={styles.container} pointerEvents="box-none">
-      <View style={styles.bar}>
-        <BottomBarBackground />
-        <View style={styles.profileLeft}>
-          <Image source={{ uri: "https://i.pravatar.cc/100?img=12" }} style={styles.avatar} />
-          <Text style={styles.name}>Arjun Bishnoi</Text>
+      <View style={styles.row} pointerEvents="box-none">
+        <View style={styles.bar}>
+          <BottomBarBackground />
+          <View style={styles.profileLeft}>
+            <Image source={{ uri: "https://i.pravatar.cc/100?img=12" }} style={styles.avatar} />
+            <Text style={styles.name}>Arjun Bishnoi</Text>
+          </View>
+          <Pressable onPress={() => router.push("/profile-modal")} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} accessibilityRole="button" />
+          {showSettings ? (
+            <Pressable onPress={onPressSettings} style={styles.settingsBtn} accessibilityRole="button">
+              <Ionicons name="settings-outline" size={24} color={colors.white} />
+            </Pressable>
+          ) : null}
         </View>
-        <Pressable onPress={() => router.push("/profile-modal")} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} accessibilityRole="button" />
-        <Pressable onPress={onPressSettings} style={styles.settingsBtn} accessibilityRole="button">
-          <Ionicons name="settings-outline" size={24} color={colors.white} />
-        </Pressable>
+        {trailingAccessory ? <View style={styles.trailing}>{trailingAccessory}</View> : null}
       </View>
     </View>
   );
@@ -36,7 +43,14 @@ const styles = StyleSheet.create({
     bottom: sizes.floatingBar.bottomOffset,
     alignItems: "center",
   },
+  row: {
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+  },
   bar: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -45,7 +59,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     // match FloatingBottomBar width for consistent content width target
     alignSelf: "stretch",
-    marginHorizontal: 16,
     paddingLeft: 0,
     paddingRight: 8,
     shadowColor: colors.black,
@@ -76,6 +89,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "transparent",
+  },
+  trailing: {
+    width: sizes.floatingBar.sideButtonSize,
+    height: sizes.floatingBar.sideButtonSize,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
   },
 });
 

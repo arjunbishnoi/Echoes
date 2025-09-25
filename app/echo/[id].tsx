@@ -1,8 +1,8 @@
-import React, { useMemo } from "react";
-import { View, Text, StyleSheet, Dimensions } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { dummyCapsules } from "../../data/dummyCapsules";
+import React, { useMemo } from "react";
+import { Dimensions, StyleSheet, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
+import { dummyCapsules } from "../../data/dummyCapsules";
 import { colors, spacing } from "../../theme/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -52,15 +52,6 @@ export default function EchoDetail() {
         <View style={styles.content}>
           <Text style={styles.title}>{capsule.title}</Text>
           {capsule.subtitle ? <Text style={styles.subtitle}>{capsule.subtitle}</Text> : null}
-
-          <View style={{ height: spacing.xl }} />
-          <Text style={styles.sectionHeader}>About this Echo</Text>
-          <Text style={styles.paragraph}>
-            This is a placeholder description for the echo. Add your story, location, collaborators,
-            and any media you want to preserve. The top image is shared from the card and expands to an immersive hero.
-          </Text>
-
-          <View style={{ height: 200 }} />
         </View>
       </Animated.ScrollView>
     </View>
@@ -100,17 +91,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 14,
   },
-  sectionHeader: {
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  paragraph: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
+  
 });
 
 

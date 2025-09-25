@@ -1,12 +1,12 @@
-import React from "react";
-import { View, Text, StyleSheet, Image, Pressable, Platform, type StyleProp, type ViewStyle } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { colors, radii } from "../theme/theme";
+import React from "react";
+import { Image, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { GestureConfig } from "../config/ui";
 import { runOnJS } from "react-native-reanimated";
+import { GestureConfig } from "../config/ui";
+import { colors, radii } from "../theme/theme";
 
 type Props = {
   title: string;
@@ -103,30 +103,33 @@ function LibraryItem({
 
 export default React.memo(LibraryItem);
 
-const ITEM_HEIGHT = 72;
-const THUMBNAIL_SIZE = 44;
+const ITEM_HEIGHT = 64; // slightly reduced height
+const CONTAINER_RADIUS = 20;
+const COVER_WIDTH = 72; // keep previous cover length so it is no longer square
 
 const styles = StyleSheet.create({
   container: {
     height: ITEM_HEIGHT,
-    borderRadius: 20,
+    borderRadius: CONTAINER_RADIUS,
     overflow: "hidden",
   },
   inner: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
+    paddingRight: 16, // no left padding so cover aligns flush left
   },
   leftCluster: {
-    width: THUMBNAIL_SIZE + 12,
+    width: COVER_WIDTH,
     flexDirection: "row",
     alignItems: "center",
+    marginRight: 12,
   },
   thumbnail: {
-    width: THUMBNAIL_SIZE,
-    height: THUMBNAIL_SIZE,
-    borderRadius: radii.md,
+    width: COVER_WIDTH,
+    height: ITEM_HEIGHT,
+    borderTopRightRadius: CONTAINER_RADIUS,
+    borderBottomRightRadius: CONTAINER_RADIUS,
     backgroundColor: "#222",
   },
   statusBadgeRight: {
@@ -142,11 +145,12 @@ const styles = StyleSheet.create({
   },
   centerCluster: {
     flex: 1,
+    justifyContent: "center", // vertically center title + progress bar
   },
   title: {
     fontSize: 14,
     fontWeight: "700",
-    marginBottom: 10,
+    marginBottom: 6, // consistent gap between title and progress bar
   },
   progressTrack: {
     height: 4,

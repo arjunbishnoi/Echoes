@@ -9,6 +9,7 @@ export function DrawerScroll({
   indicatorSide = "right",
   onScrollBeginDrag,
   onScrollEndDrag,
+  scrollRef,
 }: {
   children: React.ReactNode;
   topPadding?: number;
@@ -16,10 +17,12 @@ export function DrawerScroll({
   indicatorSide?: "left" | "right";
   onScrollBeginDrag?: () => void;
   onScrollEndDrag?: () => void;
+  scrollRef?: React.RefObject<ScrollView>;
 }) {
   const insets = indicatorSide === "right" ? { right: 0 } : { left: 0 };
   return (
     <ScrollView
+      ref={scrollRef as any}
       contentContainerStyle={{ paddingTop: topPadding, paddingBottom: bottomPadding }}
       showsVerticalScrollIndicator
       indicatorStyle="white"
@@ -46,5 +49,7 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
   },
 });
+
+
 
 

@@ -1,24 +1,23 @@
-import React, { useCallback } from "react";
-import { View, StyleSheet, FlatList, RefreshControl, Platform, useWindowDimensions } from "react-native";
-import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import React, { useCallback, useMemo } from "react";
+import { FlatList, RefreshControl, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Drawer } from "react-native-drawer-layout";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import BottomGradient from "../components/BottomGradient";
+import DrawerBlurOverlay from "../components/DrawerBlurOverlay";
 import FloatingBottomBar from "../components/FloatingBottomBar";
+import LeftDrawerContent from "../components/LeftDrawerContent";
+import ListSeparator from "../components/ListSeparator";
+import PlusToSideStrip from "../components/PlusToSideStrip";
+import RightDrawerContent from "../components/RightDrawerContent";
+import { RightDrawerProgressProvider } from "../components/RightDrawerProgress";
 import SideStripCreateProxy from "../components/SideStripCreateProxy";
 import TimeCapsuleCard from "../components/TimeCapsuleCard";
-import BottomGradient from "../components/BottomGradient";
-import ListSeparator from "../components/ListSeparator";
-import { dummyCapsules } from "../data/dummyCapsules";
-import type { Capsule } from "../types/capsule";
-import { colors, spacing, sizes } from "../theme/theme";
-import { useRefresh } from "../hooks/useRefresh";
-import { useRouter } from "expo-router";
-import { Drawer } from "react-native-drawer-layout";
-import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import { GestureConfig } from "../config/ui";
-import LeftDrawerContent from "../components/LeftDrawerContent";
-import RightDrawerContent from "../components/RightDrawerContent";
-import DrawerBlurOverlay from "../components/DrawerBlurOverlay";
-import PlusToSideStrip from "../components/PlusToSideStrip";
-import { RightDrawerProgressProvider } from "../components/RightDrawerProgress";
+import { dummyCapsules } from "../data/dummyCapsules";
+import { useRefresh } from "../hooks/useRefresh";
+import { colors, sizes, spacing } from "../theme/theme";
+import type { Capsule } from "../types/capsule";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -33,12 +32,18 @@ export default function HomeScreen() {
   const rightSwipeWidth = Math.max(0, halfWidth - 1); // right half minus 1px to avoid overlap
   // rely only on open state for press disabling
   // no extra overlay gesture; rely on Drawer gestures for stability
+  const ongoingCapsules = useMemo(() => dummyCapsules.filter(c => c.status === "ongoing"), []);
   const renderItem = useCallback(({ item }: { item: Capsule }) => (
     <TimeCapsuleCard
       id={item.id}
       title={item.title}
-      subtitle={item.subtitle}
+      // subtitle removed from visual per new design; keep prop for future
+      // subtitle={item.subtitle}
       imageUrl={item.imageUrl}
+      creatorAvatarUri={`https://i.pravatar.cc/100?img=${(Number(item.id) * 7) % 70}`}
+      progress={((Number(item.id) * 3) % 10) / 10}
+      remainingLabel={`${12 + (Number(item.id) % 5)} days left`}
+      participants={item.participants}
       style={{ minHeight: sizes.list.cardMinHeight }}
       onPress={leftOpen || rightOpen ? undefined : () => router.push({ pathname: "/echo/[id]", params: { id: item.id } })}
     />
@@ -77,7 +82,7 @@ export default function HomeScreen() {
       >
       <SafeAreaView style={styles.container} edges={["top"]}>
         <FlatList
-          data={dummyCapsules}
+          data={ongoingCapsules}
           keyExtractor={keyExtractor}
           contentContainerStyle={[
             styles.listContent,
