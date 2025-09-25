@@ -1,6 +1,6 @@
 ## Echoes
 
-A simple Expo app.
+A Digital Time Capsule Expo app.
 
 ### Requirements
 - Node.js 18+
