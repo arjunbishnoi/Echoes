@@ -1,11 +1,11 @@
-import React from "react";
-import { View, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import BottomBarBackground from "./BottomBarBackground";
+import React from "react";
+import { Pressable, StyleSheet, View } from "react-native";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
+import { indicatorPulse, indicatorSpring } from "../config/animation";
 import { colors, radii, sizes } from "../theme/theme";
 import type { FilterKey } from "../types/library";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withSequence, withTiming, Easing } from "react-native-reanimated";
-import { indicatorSpring, indicatorPulse } from "../config/animation";
+import BottomBarBackground from "./BottomBarBackground";
 
 // moved to types/library
 

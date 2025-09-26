@@ -1,6 +1,6 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Stack } from "expo-router";
 import { Pressable } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { colors } from "../theme/theme";
 
@@ -32,11 +32,55 @@ export default function RootLayout() {
         <Stack.Screen name="notifications" options={{ headerShown: true, title: "Notifications" }} />
         <Stack.Screen
           name="create"
-          options={{ presentation: "modal", headerShown: true, title: "New Echo" }}
+          options={({ navigation }) => ({
+            presentation: "modal",
+            headerShown: true,
+            title: "New Echo",
+            headerTransparent: true,
+            headerTranslucent: true,
+            headerLargeTitle: false,
+            headerTitleAlign: "center",
+            headerShadowVisible: false,
+            headerTintColor: colors.textPrimary,
+            contentStyle: { backgroundColor: colors.modalSurface },
+            headerRight: () => (
+              <Pressable
+                onPress={() => navigation.goBack()}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={12}
+                style={{ paddingHorizontal: 4, paddingVertical: 2 }}
+              >
+                <Ionicons name="close" size={28} color={colors.white} />
+              </Pressable>
+            ),
+          })}
         />
         <Stack.Screen
           name="profile-modal"
-          options={{ presentation: "modal", headerShown: true, title: "Profile" }}
+          options={({ navigation }) => ({
+            presentation: "modal",
+            headerShown: true,
+            title: "Settings",
+            headerTransparent: true,
+            headerTranslucent: true,
+            headerLargeTitle: false,
+            headerTitleAlign: "center",
+            headerShadowVisible: false,
+            headerTintColor: colors.textPrimary,
+            contentStyle: { backgroundColor: colors.modalSurface },
+            headerRight: () => (
+              <Pressable
+                onPress={() => navigation.goBack()}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                hitSlop={12}
+                style={{ paddingHorizontal: 4, paddingVertical: 2 }}
+              >
+                <Ionicons name="close" size={28} color={colors.white} />
+              </Pressable>
+            ),
+          })}
         />
       </Stack>
     </GestureHandlerRootView>

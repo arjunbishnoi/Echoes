@@ -1,15 +1,20 @@
 import React from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
-import { colors, spacing } from "../theme/theme";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { colors } from "../theme/theme";
 
 export default function ProfileModal() {
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}>
-      <View style={{ alignItems: "center" }}>
-        <Image source={{ uri: "https://i.pravatar.cc/300?img=12" }} style={styles.avatarBig} />
-        <View style={{ height: spacing.md }} />
-        <Text style={styles.name}>Arjun Bishnoi</Text>
-      </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      contentInsetAdjustmentBehavior="automatic"
+    >
+      {Array.from({ length: 24 }).map((_, index) => (
+        <View key={index} style={styles.row}>
+          <Text style={styles.rowTitle}>Setting {index + 1}</Text>
+          <Text style={styles.rowSubtitle}>Example description for this setting.</Text>
+        </View>
+      ))}
     </ScrollView>
   );
 }
@@ -17,13 +22,25 @@ export default function ProfileModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.modalSurface,
   },
-  avatarBig: { width: 120, height: 120, borderRadius: 60 },
-  name: {
+  contentContainer: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  row: {
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.surfaceBorder,
+  },
+  rowTitle: {
     color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: "800",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  rowSubtitle: {
+    color: colors.textSecondary,
+    marginTop: 4,
   },
 });
 

@@ -1,6 +1,7 @@
 export const colors = {
   background: "#000000",
   surface: "#121212",
+  modalSurface: "#1A1A1A",
   surfaceBorder: "#2B2B2B",
   floatingBarBg: "rgb(132, 132, 132)",
   textPrimary: "#FFFFFF",
