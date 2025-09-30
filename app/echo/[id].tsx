@@ -1,8 +1,11 @@
-import { useLocalSearchParams } from "expo-router";
-import React, { useMemo } from "react";
-import { Dimensions, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useNavigation } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Dimensions, Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { dummyCapsules } from "../../data/dummyCapsules";
+import { computeCapsuleProgressPercent } from "../../lib/echoes";
 import { colors, spacing } from "../../theme/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -15,6 +18,11 @@ export default function EchoDetail() {
     return { id: String(id), title: titleParam ?? "Echo", subtitle: subtitleParam ?? "", imageUrl: typeof imageParam === "string" ? imageParam : undefined } as any;
   }, [id, titleParam, imageParam, subtitleParam]);
   const sharedTag = `echo-image-${id}`;
+  const navigation = useNavigation();
+  const [showHeaderTitle, setShowHeaderTitle] = useState(false);
+  const titleTopRef = useRef(0);
+  const titleHeightRef = useRef(0);
+  const insets = useSafeAreaInsets();
 
   if (!capsule) {
     return (
@@ -24,6 +32,13 @@ export default function EchoDetail() {
     );
   }
 
+  const progress = computeCapsuleProgressPercent(capsule);
+  const collaborators = capsule.participants ?? [];
+
+  useEffect(() => {
+    navigation.setOptions({ title: showHeaderTitle ? capsule.title : "" });
+  }, [navigation, showHeaderTitle, capsule.title]);
+
   return (
     <View style={styles.container}>
       <Animated.ScrollView
@@ -31,6 +46,14 @@ export default function EchoDetail() {
         bounces
         overScrollMode="always"
         scrollEventThrottle={16}
+        onScroll={(e: any) => {
+          const y = e?.nativeEvent?.contentOffset?.y ?? 0;
+          // Reveal header title only after the on-screen title has fully scrolled past the top edge
+          const extraOffset = insets.top + 24; // delay to ensure it's well past the top edge under the translucent header
+          const threshold = Math.max(0, titleTopRef.current + titleHeightRef.current + extraOffset);
+          if (y >= threshold && !showHeaderTitle) setShowHeaderTitle(true);
+          if (y < threshold && showHeaderTitle) setShowHeaderTitle(false);
+        }}
       >
         <Animated.View
           {...({
@@ -50,8 +73,45 @@ export default function EchoDetail() {
         </Animated.View>
 
         <View style={styles.content}>
-          <Text style={styles.title}>{capsule.title}</Text>
-          {capsule.subtitle ? <Text style={styles.subtitle}>{capsule.subtitle}</Text> : null}
+          <Text
+            style={styles.title}
+            onLayout={e => {
+              titleTopRef.current = e.nativeEvent.layout.y;
+              titleHeightRef.current = e.nativeEvent.layout.height;
+            }}
+          >
+            {capsule.title}
+          </Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressBar, { width: `${Math.max(0, Math.min(1, progress)) * 100}%` }]} />
+          </View>
+          {collaborators.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.collaboratorsRow}
+            >
+              {collaborators.map((uri: string, idx: number) => (
+                <Image key={`col-${idx}`} source={{ uri }} style={styles.avatar} />
+              ))}
+            </ScrollView>
+          ) : (
+            <View style={styles.privateBadge}>
+              <View style={styles.privateBadgeOverlay} />
+              <View style={styles.privateBadgeContent}>
+                <Ionicons name="lock-closed" size={12} color={colors.white} style={styles.privateIcon} />
+                <Text style={styles.privateBadgeText}>Private</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Fake sections to demo scrolling */}
+          {Array.from({ length: 16 }).map((_, index) => (
+            <View key={`sec-${index}`} style={styles.fakeRow}>
+              <Text style={styles.fakeTitle}>{`Section ${index + 1}`}</Text>
+              <Text style={styles.fakeSubtitle}>Example content for this section.</Text>
+            </View>
+          ))}
         </View>
       </Animated.ScrollView>
     </View>
@@ -67,6 +127,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: spacing.xxl,
+    paddingTop: 0,
   },
   heroContainer: {
     width: "100%",
@@ -85,11 +146,74 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 28,
     fontWeight: "700",
-    marginBottom: 8,
+    marginBottom: spacing.lg,
   },
-  subtitle: {
+  progressTrack: {
+    height: 6,
+    backgroundColor: "rgba(255,255,255,0.25)",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: spacing.lg,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: colors.white,
+    borderRadius: 4,
+  },
+  collaboratorsRow: {
+    paddingVertical: spacing.md,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: spacing.md,
+  },
+  fakeRow: {
+    paddingVertical: spacing.lg,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.surfaceBorder,
+  },
+  fakeTitle: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  fakeSubtitle: {
     color: colors.textSecondary,
-    fontSize: 14,
+    marginTop: 4,
+  },
+  privateBadge: {
+    alignSelf: "flex-start",
+    height: 28,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    backgroundColor: "rgba(0,0,0,0.12)",
+  },
+  privateBadgeOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.lightOverlay,
+  },
+  privateBadgeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  privateIcon: {
+    marginRight: 6,
+    opacity: 0.9,
+  },
+  privateBadgeText: {
+    color: colors.textPrimary,
+    fontWeight: "600",
+    fontSize: 10,
+    opacity: 0.9,
   },
   
 });

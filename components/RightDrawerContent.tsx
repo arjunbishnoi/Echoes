@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { dummyCapsules } from "../data/dummyCapsules";
 import { computeCapsuleProgressPercent, filterCapsulesByStatus, searchCapsules, type CapsuleFilter } from "../lib/echoes";
@@ -68,9 +68,10 @@ export default function RightDrawerContent({ insetTop }: RightDrawerContentProps
               const locked = opts?.locked ?? c.status === "locked";
               const completed = opts?.completed ?? c.status === "unlocked";
               const progressVal = completed ? 1 : computeCapsuleProgressPercent(c);
+              const segmentWidth = 0.25 * (Dimensions.get('window').width - 32);
               return (
                 <React.Fragment key={`${query ? "q" : filter}-${c.id}`}>
-                  {idx > 0 ? <View style={{ height: sizes.list.itemSpacing }} /> : null}
+                  {idx > 0 ? <View style={{ height: spacing.sm }} /> : null}
                   <LibraryItem
                     title={c.title}
                     thumbnailUri={c.imageUrl}
@@ -79,6 +80,7 @@ export default function RightDrawerContent({ insetTop }: RightDrawerContentProps
                     completed={completed}
                     textColor={completed ? "#EAEAEA" : undefined}
                     onPress={() => pushEcho(c.id, c.title, c.imageUrl, c.description)}
+                    coverWidth={segmentWidth}
                   />
                 </React.Fragment>
               );
@@ -95,9 +97,9 @@ export default function RightDrawerContent({ insetTop }: RightDrawerContentProps
           return (
             <>
               {renderList(ongoing)}
-              <View style={{ height: sizes.list.itemSpacing }} />
+              <View style={{ height: spacing.sm }} />
               {renderList(locked, { locked: true })}
-              <View style={{ height: sizes.list.itemSpacing }} />
+              <View style={{ height: spacing.sm }} />
               {renderList(unlocked, { completed: true })}
             </>
           );

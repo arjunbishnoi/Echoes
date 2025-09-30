@@ -1,6 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -19,6 +17,7 @@ type Props = {
   textColor?: string;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
+  coverWidth?: number;
 };
 
 function LibraryItem({
@@ -32,6 +31,7 @@ function LibraryItem({
   textColor,
   style,
   onPress,
+  coverWidth,
 }: Props) {
   const tapGesture = React.useMemo(() => {
     return Gesture.Tap()
@@ -45,22 +45,28 @@ function LibraryItem({
       });
   }, [onPress]);
 
+  const cw = Math.max(40, Math.round(coverWidth ?? COVER_WIDTH));
   const content = (
     <View style={styles.inner}>
-      <View style={styles.leftCluster}>
+      <View style={[styles.leftCluster, { width: cw }]}>
         {thumbnailUri ? (
-          <Image source={{ uri: thumbnailUri }} style={styles.thumbnail} />
+          <Image source={{ uri: thumbnailUri }} style={[styles.thumbnail, { width: cw }]} />
         ) : (
-          <View style={[styles.thumbnail, { backgroundColor: "rgba(255,255,255,0.18)" }]} />
+          <View style={[styles.thumbnail, { width: cw, backgroundColor: "rgba(255,255,255,0.18)" }]} />
         )}
       </View>
       <View style={styles.centerCluster}>
-        <Text style={[styles.title, { color: textColor ?? colors.white }]} numberOfLines={1}>
+        <Text style={[
+          styles.title,
+          { color: textColor ?? colors.white, marginBottom: completed ? 0 : 6 }
+        ]} numberOfLines={1}>
           {title}
         </Text>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressBar, { width: `${Math.max(0, Math.min(1, progress)) * 100}%` }]} />
-        </View>
+        {!completed ? (
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressBar, { width: `${Math.max(0, Math.min(1, progress)) * 100}%` }]} />
+          </View>
+        ) : null}
       </View>
       <View style={{ width: 12 }} />
     </View>
@@ -73,18 +79,7 @@ function LibraryItem({
         android_ripple={onPress && Platform.OS === "android" ? { color: "rgba(255,255,255,0.12)" } : undefined}
         style={[styles.container, style]}
       >
-        {/* Accentified background: blurred cover image or solid fallback */}
-        {thumbnailUri ? (
-          <>
-            <Image source={{ uri: thumbnailUri }} style={[StyleSheet.absoluteFill, { opacity: 1 }]} resizeMode="cover" />
-            <BlurView intensity={90} style={StyleSheet.absoluteFill} />
-            <View style={[StyleSheet.absoluteFill, { }]} />
-          </>
-        ) : gradientColors ? (
-          <LinearGradient colors={gradientColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: solidColor ?? colors.surface }]} />
-        )}
+        {/* No background behind content */}
         {content}
         {locked ? (
           <View style={styles.statusBadgeRight}>
@@ -103,21 +98,27 @@ function LibraryItem({
 
 export default React.memo(LibraryItem);
 
-const ITEM_HEIGHT = 64; // slightly reduced height
-const CONTAINER_RADIUS = 20;
-const COVER_WIDTH = 72; // keep previous cover length so it is no longer square
+const ITEM_HEIGHT = 56; // keep row height
+const CONTAINER_RADIUS = 20; // keep overall shape on right side
+const COVER_WIDTH = 64; // shorter width
+const COVER_HEIGHT = 48; // taller height
+const STATUS_ICON_SIZE = 24;
+const STATUS_ICON_TOP = (ITEM_HEIGHT - STATUS_ICON_SIZE) / 2; // center vertically
 
 const styles = StyleSheet.create({
   container: {
     height: ITEM_HEIGHT,
-    borderRadius: CONTAINER_RADIUS,
+    borderTopLeftRadius: 8,
+    borderBottomLeftRadius: 8,
+    borderTopRightRadius: CONTAINER_RADIUS,
+    borderBottomRightRadius: CONTAINER_RADIUS,
     overflow: "hidden",
   },
   inner: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    paddingRight: 16, // no left padding so cover aligns flush left
+    paddingRight: 0,
   },
   leftCluster: {
     width: COVER_WIDTH,
@@ -127,17 +128,16 @@ const styles = StyleSheet.create({
   },
   thumbnail: {
     width: COVER_WIDTH,
-    height: ITEM_HEIGHT,
-    borderTopRightRadius: CONTAINER_RADIUS,
-    borderBottomRightRadius: CONTAINER_RADIUS,
+    height: COVER_HEIGHT,
+    borderRadius: 8,
     backgroundColor: "#222",
   },
   statusBadgeRight: {
     position: "absolute",
-    top: 8,
+    top: STATUS_ICON_TOP,
     right: 10,
-    width: 24,
-    height: 24,
+    width: STATUS_ICON_SIZE,
+    height: STATUS_ICON_SIZE,
     borderRadius: radii.sm,
     backgroundColor: "rgba(255,255,255,0.22)",
     alignItems: "center",
@@ -146,6 +146,7 @@ const styles = StyleSheet.create({
   centerCluster: {
     flex: 1,
     justifyContent: "center", // vertically center title + progress bar
+    paddingRight: STATUS_ICON_SIZE + 12, // reserve space for the centered status icon
   },
   title: {
     fontSize: 14,
@@ -157,6 +158,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.35)",
     borderRadius: 4,
     overflow: "hidden",
+    marginRight: 0,
   },
   progressBar: {
     height: 4,
