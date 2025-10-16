@@ -14,7 +14,7 @@ import { useEchoStorage } from "../../../hooks/useEchoStorage";
 import { colors, radii, spacing } from "../../../theme/theme";
 
 const AVATAR_SIZE = 56;
-const COVER_ASPECT_RATIO = [10, 4];
+const COVER_ASPECT_RATIO = [5, 2];
 
 export default function EditEchoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

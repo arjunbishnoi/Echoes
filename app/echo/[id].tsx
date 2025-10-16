@@ -11,6 +11,7 @@ import EchoHeroImage from "../../components/echo/EchoHeroImage";
 import EchoProgressTimeline from "../../components/echo/EchoProgressTimeline";
 import EchoTabBar, { type EchoTab } from "../../components/echo/EchoTabBar";
 import EchoTitle from "../../components/echo/EchoTitle";
+import MediaGalleryViewer from "../../components/MediaGalleryViewer";
 import FloatingActionButton from "../../components/ui/FloatingActionButton";
 import { SCREEN_WIDTH } from "../../constants/dimensions";
 import { dummyFriends } from "../../data/dummyFriends";
@@ -67,6 +68,8 @@ export default function EchoDetailScreen() {
   const isOngoing = capsuleData.status === "ongoing";
   
   const [currentPage, setCurrentPage] = useState(() => (isUnlocked ? 0 : 1));
+  const [galleryVisible, setGalleryVisible] = useState(false);
+  const [selectedMediaIndex, setSelectedMediaIndex] = useState(0);
   const scrollX = useSharedValue(0);
 
   const {
@@ -140,6 +143,12 @@ export default function EchoDetailScreen() {
     },
     [setSelectedTab]
   );
+
+  const handleMediaPress = useCallback((item: Echo["media"][0]) => {
+    const index = capsule.media?.findIndex(m => m.id === item.id) ?? 0;
+    setSelectedMediaIndex(index);
+    setGalleryVisible(true);
+  }, [capsule.media]);
 
   const handleTabPress = useCallback(
     (tab: EchoTab) => {
@@ -447,10 +456,7 @@ export default function EchoDetailScreen() {
               }}
               isTabTapping={isTabTapping}
               scrollEnabled={isUnlocked}
-              onMediaPress={(item) => {
-                // Media viewer to be implemented
-                Alert.alert("Media", `Viewing ${item.type}: ${item.uri.split("/").pop()}`);
-              }}
+              onMediaPress={handleMediaPress}
             />
           </View>
         </View>
@@ -465,6 +471,13 @@ export default function EchoDetailScreen() {
           style={styles.floatingButton}
         />
       )}
+
+      <MediaGalleryViewer
+        visible={galleryVisible}
+        media={capsule.media || []}
+        initialIndex={selectedMediaIndex}
+        onClose={() => setGalleryVisible(false)}
+      />
     </View>
   );
 }

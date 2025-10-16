@@ -26,14 +26,14 @@ export default function FloatingActionButton({
       ]}
       onPress={onPress}
     >
-      <Ionicons name={icon} size={28} color={colors.white} />
+      <Ionicons name={icon} size={28} color={colors.black} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: Platform.OS === "ios" ? "#007AFF" : "#000000",
+    backgroundColor: colors.white,
     alignItems: "center",
     justifyContent: "center",
     // iOS native shadow

@@ -50,7 +50,7 @@ export default function CreateEchoScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [16, 9],
+      aspect: [5, 2],
       quality: 0.9,
       exif: false,
     });
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   },
   coverImage: {
     width: "100%",
-    aspectRatio: 16 / 8,
+    aspectRatio: 2.5,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
