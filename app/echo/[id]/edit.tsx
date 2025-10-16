@@ -19,7 +19,7 @@ const COVER_ASPECT_RATIO = [10, 4];
 export default function EditEchoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
-  const { getEchoById, updateEcho } = useEchoStorage();
+  const { getEchoById, updateEcho, deleteEcho } = useEchoStorage();
 
   const echo = useMemo(() => {
     if (!id) return undefined;
@@ -175,7 +175,30 @@ export default function EditEchoScreen() {
       console.error("Failed to save echo:", error);
       Alert.alert("Error", "Failed to save changes. Please try again.");
     }
-  }, [id, echo, title, imageUrl, isPrivate, lockDate, unlockDate, updateEcho]);
+  }, [id, echo, title, imageUrl, isPrivate, lockDate, unlockDate, updateEcho, collaboratorIds]);
+
+  const handleDelete = useCallback(() => {
+    Alert.alert(
+      "Delete Echo",
+      `Are you sure you want to delete "${title}"? This action cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            if (!id) return;
+            try {
+              await deleteEcho(String(id));
+              navigation.goBack();
+            } catch (error) {
+              Alert.alert("Error", "Failed to delete echo. Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  }, [id, title, deleteEcho, navigation]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -393,6 +416,18 @@ export default function EditEchoScreen() {
         />
       )}
 
+        <View style={styles.deleteSection}>
+          <Pressable
+            onPress={handleDelete}
+            style={styles.deleteButton}
+            accessibilityRole="button"
+            accessibilityLabel="Delete echo"
+          >
+            <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+            <Text style={styles.deleteButtonText}>Delete Echo</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.bottomSpacer} />
       </View>
       </ScrollView>
@@ -541,22 +576,22 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   cancelButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
   },
   cancelText: {
     color: colors.textPrimary,
     fontWeight: "600",
-    fontSize: 16,
+    fontSize: 17,
   },
   saveButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
   },
   saveText: {
     color: colors.white,
-    fontWeight: "600",
-    fontSize: 16,
+    fontWeight: "800",
+    fontSize: 17,
   },
   modalOverlay: {
     flex: 1,
@@ -574,6 +609,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
+  },
+  deleteSection: {
+    marginTop: spacing.xl,
+  },
+  deleteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: "rgba(255, 59, 48, 0.15)",
+    borderRadius: radii.md,
+    gap: 8,
+  },
+  deleteButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: "700",
   },
   bottomSpacer: {
     height: spacing.xxl,
