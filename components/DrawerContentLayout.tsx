@@ -22,7 +22,7 @@ export function DrawerScroll({
   const insets = indicatorSide === "right" ? { right: 0 } : { left: 0 };
   return (
     <ScrollView
-      ref={scrollRef as any}
+      ref={scrollRef}
       contentContainerStyle={{ paddingTop: topPadding, paddingBottom: bottomPadding }}
       showsVerticalScrollIndicator
       indicatorStyle="white"
@@ -49,7 +49,3 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
   },
 });
-
-
-
-

@@ -1,10 +1,10 @@
-import React from "react";
-import { View, Pressable, StyleSheet, useWindowDimensions, PixelRatio } from "react-native";
-import BottomBarBackground from "./BottomBarBackground";
+import { Ionicons } from "@expo/vector-icons";
+import { memo } from "react";
+import { PixelRatio, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import useDrawerPair from "../hooks/useDrawerPair";
-import { Ionicons } from "@expo/vector-icons";
 import { colors, radii, sizes } from "../theme/theme";
+import BottomBarBackground from "./BottomBarBackground";
 
 type Props = {
   onPressProfile?: () => void;
@@ -12,7 +12,7 @@ type Props = {
   onPressMenu?: () => void;
 };
 
-export default function FloatingBottomBar({
+function FloatingBottomBar({
   onPressProfile,
   onPressCreate,
   onPressMenu,
@@ -99,21 +99,21 @@ export default function FloatingBottomBar({
         <Animated.View style={[styles.plusButton, plusAnimated]}>
           <Pressable onPress={onPressCreate} hitSlop={12} accessibilityRole="button" accessibilityLabel="Create new echo">
             <Animated.View style={iconShift}>
-              <View style={{ width: 26, height: 26, alignItems: "center", justifyContent: "center" }}>
+              <View style={styles.iconContainer}>
                 <Ionicons name="add-sharp" size={26} color={colors.black} />
-                <Ionicons name="add-sharp" size={26} color={colors.black} style={{ position: "absolute", transform: [{ translateX: onePx }] }} />
-                <Ionicons name="add-sharp" size={26} color={colors.black} style={{ position: "absolute", transform: [{ translateX: -onePx }] }} />
-                <Ionicons name="add-sharp" size={26} color={colors.black} style={{ position: "absolute", transform: [{ translateY: onePx }] }} />
-                <Ionicons name="add-sharp" size={26} color={colors.black} style={{ position: "absolute", transform: [{ translateY: -onePx }] }} />
+                <Ionicons name="add-sharp" size={26} color={colors.black} style={[styles.iconAbsolute, { transform: [{ translateX: onePx }] }]} />
+                <Ionicons name="add-sharp" size={26} color={colors.black} style={[styles.iconAbsolute, { transform: [{ translateX: -onePx }] }]} />
+                <Ionicons name="add-sharp" size={26} color={colors.black} style={[styles.iconAbsolute, { transform: [{ translateY: onePx }] }]} />
+                <Ionicons name="add-sharp" size={26} color={colors.black} style={[styles.iconAbsolute, { transform: [{ translateY: -onePx }] }]} />
               </View>
             </Animated.View>
           </Pressable>
         </Animated.View>
 
         <Pressable onPress={onPressMenu} style={styles.sideButton} hitSlop={12} accessibilityRole="button" accessibilityLabel="Open menu">
-          <View style={{ width: 26, height: 26, alignItems: "center", justifyContent: "center" }}>
-            <View style={{ position: "absolute", width: 22, height: 3, borderRadius: 2, backgroundColor: colors.textPrimary, transform: [{ translateY: -4 }] }} />
-            <View style={{ position: "absolute", width: 22, height: 3, borderRadius: 2, backgroundColor: colors.textPrimary, transform: [{ translateY: 4 }] }} />
+          <View style={styles.iconContainer}>
+            <View style={[styles.menuLine, { transform: [{ translateY: -4 }] }]} />
+            <View style={[styles.menuLine, { transform: [{ translateY: 4 }] }]} />
           </View>
         </Pressable>
       </View>
@@ -163,6 +163,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  iconContainer: {
+    width: 26,
+    height: 26,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconAbsolute: {
+    position: "absolute",
+  },
+  menuLine: {
+    position: "absolute",
+    width: 22,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.textPrimary,
+  },
 });
 
-
+export default memo(FloatingBottomBar);

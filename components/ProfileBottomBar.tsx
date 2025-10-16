@@ -11,7 +11,7 @@ type Props = {
   trailingAccessory?: React.ReactNode;
 };
 
-export default function ProfileBottomBar({ onPressSettings, showSettings = true, trailingAccessory }: Props) {
+function ProfileBottomBar({ onPressSettings, showSettings = true, trailingAccessory }: Props) {
   const router = useRouter();
   return (
     <View style={styles.container} pointerEvents="box-none">

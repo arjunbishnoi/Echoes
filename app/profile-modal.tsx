@@ -1,133 +1,123 @@
-import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
-import { FormRow, FormSection } from "../components/IOSForm";
-import { getExpoSwiftUI } from "../lib/expoUi";
+import { useState } from "react";
+import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { UnifiedFormSection } from "../components/forms/UnifiedForm";
+import { UnifiedFormRow } from "../components/forms/UnifiedFormRow";
+import { useAuth } from "../lib/authContext";
 import { colors, radii, spacing } from "../theme/theme";
 
 export default function ProfileModal() {
   const router = useRouter();
+  const { user, signOut } = useAuth();
   const [isDarkTheme, setIsDarkTheme] = useState(true);
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
   const platformName = Platform.OS === "ios" ? "iOS" : "Android";
-  const SwiftUI = Platform.OS === "ios" ? getExpoSwiftUI() : null;
+
+  const handleSignOut = async () => {
+    Alert.alert("Sign out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign out",
+        style: "destructive",
+        onPress: async () => {
+          await signOut();
+          router.replace("/(auth)/sign-in");
+        },
+      },
+    ]);
+  };
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       contentInsetAdjustmentBehavior="automatic"
     >
-      <Pressable onPress={() => Alert.alert("Edit Profile", "Edit screen coming soon")} style={styles.profileHeader} accessibilityRole="button" accessibilityLabel="Edit Profile">
+      <View style={styles.profileHeader}>
         <Image
-          source={{ uri: "https://picsum.photos/seed/user-avatar/120/120" }}
+          source={{ uri: user?.photoURL || "https://picsum.photos/seed/user-avatar/120/120" }}
           style={styles.avatar}
         />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.name}>Your Name</Text>
-          <Text style={styles.editText}>Edit Profile</Text>
+        <View style={styles.userInfo}>
+          <Text style={styles.name}>{user?.displayName || "Your Name"}</Text>
+          <Text style={styles.username}>@{user?.username || user?.email?.split("@")[0] || "username"}</Text>
         </View>
-      </Pressable>
+      </View>
 
-      {SwiftUI ? (
-        <View style={{ marginBottom: spacing.xl }}>
-          <SwiftUI.Host style={{ flex: 1 }}>
-            <SwiftUI.Form>
-              <SwiftUI.Section>
-                <SwiftUI.Button onPress={() => router.push("/friends")}>Friends</SwiftUI.Button>
-                <SwiftUI.Button onPress={() => router.push("/echoes")}>Echoes Library</SwiftUI.Button>
-                <SwiftUI.Switch
-                  value={isDarkTheme}
-                  label={`Theme: ${isDarkTheme ? "Dark" : "Light"}`}
-                  onValueChange={setIsDarkTheme}
-                />
-              </SwiftUI.Section>
-            </SwiftUI.Form>
-          </SwiftUI.Host>
-        </View>
-      ) : (
-        <FormSection>
-          <FormRow
-            title="Friends"
-            Left={<Ionicons name="people-outline" size={20} color={colors.textPrimary} />}
-            showChevron
-            onPress={() => router.push("/friends")}
-            accessibilityLabel="Friends"
-          />
-          <FormRow
-            title="Echoes Library"
-            Left={<Ionicons name="albums-outline" size={20} color={colors.textPrimary} />}
-            showChevron
-            onPress={() => router.push("/echoes")}
-            accessibilityLabel="Echoes Library"
-          />
-          <FormRow
-            title={`Theme: ${isDarkTheme ? "Dark" : "Light"}`}
-            Left={<Ionicons name="moon-outline" size={20} color={colors.textPrimary} />}
-            Right={
-              <Switch
-                value={isDarkTheme}
-                onValueChange={setIsDarkTheme}
-                trackColor={{ false: "#E5E5EA", true: "#34C759" }}
-                thumbColor={colors.white}
-              />
-            }
-          />
-        </FormSection>
-      )}
+      <UnifiedFormSection style={styles.sectionSpacing}>
+        <UnifiedFormRow
+          title="Edit Profile"
+          leftIcon="person-outline"
+          systemImage="person.circle"
+          showChevron
+          onPress={() => Alert.alert("Edit Profile", "Edit screen coming soon")}
+          accessibilityLabel="Edit Profile"
+        />
+        <UnifiedFormRow
+          title="Friends"
+          leftIcon="people-outline"
+          systemImage="person.2"
+          showChevron
+          onPress={() => router.push("/friends")}
+          accessibilityLabel="Friends"
+        />
+        <UnifiedFormRow
+          title="Echoes Library"
+          leftIcon="albums-outline"
+          systemImage="square.stack.3d.up"
+          showChevron
+          onPress={() => router.push("/echoes")}
+          accessibilityLabel="Echoes Library"
+        />
+        <UnifiedFormRow
+          title={`Theme: ${isDarkTheme ? "Dark" : "Light"}`}
+          leftIcon="moon-outline"
+          switch
+          switchValue={isDarkTheme}
+          onSwitchChange={setIsDarkTheme}
+        />
+      </UnifiedFormSection>
 
-      {SwiftUI ? (
-        <SwiftUI.Host style={{ flex: 1 }}>
-          <SwiftUI.Form>
-            <SwiftUI.Section title="About">
-              <SwiftUI.Button>Help Center</SwiftUI.Button>
-              <SwiftUI.Button>Terms of Use</SwiftUI.Button>
-              <SwiftUI.Button>Privacy Policy</SwiftUI.Button>
-              <SwiftUI.Text>{`Echoes for ${platformName} ${appVersion}`}</SwiftUI.Text>
-            </SwiftUI.Section>
-          </SwiftUI.Form>
-        </SwiftUI.Host>
-      ) : (
-        <FormSection title="About">
-          <FormRow
-            title="Help Center"
-            Left={<Ionicons name="help-circle-outline" size={20} color={colors.textPrimary} />}
-            showChevron
-            accessibilityLabel="Help Center"
-          />
-          <FormRow
-            title="Terms of Use"
-            Left={<Ionicons name="document-text-outline" size={20} color={colors.textPrimary} />}
-            showChevron
-            accessibilityLabel="Terms of Use"
-          />
-          <FormRow
-            title="Privacy Policy"
-            Left={<Ionicons name="shield-checkmark-outline" size={20} color={colors.textPrimary} />}
-            showChevron
-            accessibilityLabel="Privacy Policy"
-          />
-          <FormRow
-            title={`Echoes for ${platformName}`}
-            Left={<Ionicons name="phone-portrait-outline" size={20} color={colors.textPrimary} />}
-            Right={<Text style={styles.versionText}>{appVersion}</Text>}
-          />
-        </FormSection>
-      )}
+      <UnifiedFormSection title="About">
+        <UnifiedFormRow
+          title="Help Center"
+          leftIcon="help-circle-outline"
+          systemImage="questionmark.circle"
+          showChevron
+          onPress={() => Alert.alert("Help", "Help center coming soon")}
+          accessibilityLabel="Help Center"
+        />
+        <UnifiedFormRow
+          title="Terms of Use"
+          leftIcon="document-text-outline"
+          systemImage="doc.text"
+          showChevron
+          onPress={() => Alert.alert("Terms", "Terms of use coming soon")}
+          accessibilityLabel="Terms of Use"
+        />
+        <UnifiedFormRow
+          title="Privacy Policy"
+          leftIcon="shield-checkmark-outline"
+          systemImage="hand.raised"
+          showChevron
+          onPress={() => Alert.alert("Privacy", "Privacy policy coming soon")}
+          accessibilityLabel="Privacy Policy"
+        />
+        <UnifiedFormRow
+          title={`Echoes for ${platformName}`}
+          leftIcon="phone-portrait-outline"
+          systemImage="iphone"
+          valueText={appVersion}
+        />
+      </UnifiedFormSection>
 
       <Pressable
-        onPress={() => {
-          Alert.alert("Log out", "Are you sure you want to log out?", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Log out", style: "destructive" },
-          ]);
-        }}
+        onPress={handleSignOut}
         accessibilityRole="button"
-        accessibilityLabel="Log out"
+        accessibilityLabel="Sign out"
         style={styles.logoutButton}
       >
-        <Text style={styles.logoutText}>Log out</Text>
+        <Text style={styles.logoutText}>Sign out</Text>
       </Pressable>
     </ScrollView>
   );
@@ -139,8 +129,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.modalSurface,
   },
   contentContainer: {
-    padding: 16,
-    paddingBottom: 32,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
   profileHeader: {
     flexDirection: "row",
@@ -159,50 +149,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
   },
-  editText: {
+  username: {
     marginTop: 4,
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "600",
+    fontSize: 14,
   },
-  settingsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.xl,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.surfaceBorder,
+  userInfo: {
+    flex: 1,
   },
-  settingsIconLeft: {
-    marginRight: spacing.md,
-  },
-  row: {
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.surfaceBorder,
-  },
-  rowTitle: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  sectionHeader: {
-    marginTop: spacing.xxl,
-    marginBottom: spacing.md,
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
-  },
-  rowSubtitle: {
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  versionText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: "700",
+  sectionSpacing: {
+    marginBottom: spacing.xl,
   },
   logoutButton: {
     marginTop: spacing.lg,
@@ -218,7 +174,3 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 });
-
-
-
-

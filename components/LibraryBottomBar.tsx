@@ -61,10 +61,10 @@ function LibraryBottomBar({ active, onChange, anchor = "bottom", offset }: Props
     };
   });
   const edgeOffset = offset ?? sizes.floatingBar.bottomOffset;
-  const containerStyle = [
+  const containerStyle: any = [
     styles.containerBase,
     anchor === "top" ? { top: edgeOffset } : { bottom: edgeOffset },
-  ] as const;
+  ];
   return (
     <View style={containerStyle} pointerEvents="box-none">
       <View style={styles.bar} onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}>

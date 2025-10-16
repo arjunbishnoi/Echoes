@@ -1,4 +1,4 @@
-export type NotifKey = "friendRequests" | "regular" | "all";
+export type NotifKey = "all" | "friendRequests" | "regular" | "unseen";
 
 
 

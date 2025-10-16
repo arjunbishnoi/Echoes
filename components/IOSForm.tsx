@@ -21,7 +21,7 @@ export function FormSection({ title, style, children }: FormSectionProps) {
             (child.type?.displayName === "FormRow" || child.type?.name === "FormRow")
           ) {
             const isLast = index === childArray.length - 1;
-            return React.cloneElement(child as ReactElement, { isLast });
+            return React.cloneElement(child as ReactElement<{ isLast?: boolean }>, { isLast });
           }
           return child as ReactElement;
         })}

@@ -1,9 +1,9 @@
-import React from "react";
-import { StyleSheet, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import MaskedView from "@react-native-masked-view/masked-view";
-import { sizes, colors } from "../theme/theme";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import { memo } from "react";
+import { StyleSheet, View } from "react-native";
+import { colors, sizes } from "../theme/theme";
 
 // Mirror of BottomGradient, but anchored to the top edge and visually inverted
 const FLOATING_BAR_HEIGHT = sizes.floatingBar.height;
@@ -14,7 +14,7 @@ const FEATHER_HEIGHT = 36;
 const BOTTOM_BOOST_HEIGHT = 25; // reused for a top boost here
 const CORNER_FEATHER_SIZE = 36;
 
-export default function TopGradient({ safeTop = 0 }: { safeTop?: number }) {
+function TopGradient({ safeTop = 0 }: { safeTop?: number }) {
   const height = FLOATING_BAR_BOTTOM_OFFSET + FLOATING_BAR_HEIGHT + EXTRA_TOP_GRADIENT;
   const Masked: any = MaskedView;
   const midHeight = Math.round(height * 0.9);
@@ -22,22 +22,22 @@ export default function TopGradient({ safeTop = 0 }: { safeTop?: number }) {
   return (
     <View pointerEvents="none" style={[styles.container, { height }]}> 
       {/* Top boost: slightly stronger blur and darker overlay near the very top to soften notches/punch-holes */}
-      {safeTop > 0 ? (
+      {safeTop > 0 && (
         <>
           <BlurView
             intensity={BLUR_INTENSITY + 12}
             tint="dark"
-            style={{ position: "absolute", left: 0, right: 0, top: 0, height: safeTop + 10 }}
+            style={[styles.blurAbsolute, { height: safeTop + 10 }]}
           />
           <LinearGradient
             colors={["rgba(0,0,0,0.55)", "rgba(0,0,0,0)"]}
             locations={[0, 1]}
-            style={{ position: "absolute", left: 0, right: 0, top: 0, height: safeTop + 12 }}
+            style={[styles.gradientAbsolute, { height: safeTop + 12 }]}
           />
         </>
-      ) : null}
+      )}
       {/* Flip content vertically to invert the visual effect */}
-      <View style={{ transform: [{ scaleY: -1 }], flex: 1 }}>
+      <View style={styles.flippedContainer}>
         {/* Masked blur for a smooth onset (now at the bottom due to flip) */}
         <Masked
           style={StyleSheet.absoluteFill}
@@ -45,20 +45,20 @@ export default function TopGradient({ safeTop = 0 }: { safeTop?: number }) {
             <LinearGradient
               colors={["rgba(0,0,0,0)", "rgba(0,0,0,1)"]}
               locations={[0, 1]}
-              style={{ position: "absolute", left: 0, right: 0, top: 0, height: FEATHER_HEIGHT }}
+              style={[styles.gradientAbsolute, { height: FEATHER_HEIGHT }]}
             />
           }
         >
           <BlurView
             intensity={BLUR_INTENSITY}
             tint="dark"
-            style={{ position: "absolute", left: 0, right: 0, top: 0, height: FEATHER_HEIGHT }}
+            style={[styles.blurAbsolute, { height: FEATHER_HEIGHT }]}
           />
         </Masked>
         <BlurView
           intensity={BLUR_INTENSITY}
           tint="dark"
-          style={{ position: "absolute", left: 0, right: 0, top: FEATHER_HEIGHT, bottom: 0 }}
+          style={styles.blurMiddle}
         />
         <LinearGradient
           colors={["rgba(0,0,0,0)", "rgba(0,0,0,0.8)", colors.background]}
@@ -69,7 +69,7 @@ export default function TopGradient({ safeTop = 0 }: { safeTop?: number }) {
         <LinearGradient
           colors={["rgba(0,0,0,0)", colors.background]}
           locations={[0, 1]}
-          style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: BOTTOM_BOOST_HEIGHT }}
+          style={styles.bottomBoost}
         />
         {/* Corner feathers (also inverted by flip) */}
         <LinearGradient
@@ -77,14 +77,14 @@ export default function TopGradient({ safeTop = 0 }: { safeTop?: number }) {
           locations={[0, 1]}
           start={{ x: 0, y: 1 }}
           end={{ x: 1, y: 0 }}
-          style={{ position: "absolute", left: 0, bottom: 0, width: CORNER_FEATHER_SIZE, height: CORNER_FEATHER_SIZE }}
+          style={styles.cornerLeft}
         />
         <LinearGradient
           colors={[colors.background, "rgba(0,0,0,0)"]}
           locations={[0, 1]}
           start={{ x: 1, y: 1 }}
           end={{ x: 0, y: 0 }}
-          style={{ position: "absolute", right: 0, bottom: 0, width: CORNER_FEATHER_SIZE, height: CORNER_FEATHER_SIZE }}
+          style={styles.cornerRight}
         />
       </View>
 
@@ -94,7 +94,7 @@ export default function TopGradient({ safeTop = 0 }: { safeTop?: number }) {
         locations={[0, 1]}
         start={{ x: 0, y: 1 }}
         end={{ x: 0, y: 0 }}
-        style={{ position: "absolute", left: 0, right: 0, top: 0, height: midHeight }}
+        style={[styles.extraDark, { height: midHeight }]}
       />
     </View>
   );
@@ -107,6 +107,56 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
   },
+  blurAbsolute: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+  },
+  gradientAbsolute: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+  },
+  flippedContainer: {
+    transform: [{ scaleY: -1 }],
+    flex: 1,
+  },
+  blurMiddle: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: FEATHER_HEIGHT,
+    bottom: 0,
+  },
+  bottomBoost: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: BOTTOM_BOOST_HEIGHT,
+  },
+  cornerLeft: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    width: CORNER_FEATHER_SIZE,
+    height: CORNER_FEATHER_SIZE,
+  },
+  cornerRight: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    width: CORNER_FEATHER_SIZE,
+    height: CORNER_FEATHER_SIZE,
+  },
+  extraDark: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+  },
 });
 
-
+export default memo(TopGradient);

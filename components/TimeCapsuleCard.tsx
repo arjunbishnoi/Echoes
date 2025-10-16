@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
-import MaskedView from "@react-native-masked-view/masked-view";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import React, { useMemo } from "react";
-import { Image, ImageBackground, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { SymbolView } from "expo-symbols";
+import { memo, useMemo } from "react";
+import { Image, ImageBackground, Platform, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS } from "react-native-reanimated";
 import { GestureConfig } from "../config/ui";
 import { colors, radii, sizes } from "../theme/theme";
+import StatusBadge from "./ui/StatusBadge";
 
 type Props = {
   id: string;
@@ -15,13 +16,17 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   imageUrl?: string;
   onPress?: () => void;
-  // New UI elements for progress + remaining time
-  progress?: number; // 0..1 time elapsed
-  remainingLabel?: string; // e.g., "12 days left"
-  participants?: string[]; // list of avatar URIs for shared echoes; empty/undefined for private
+  onLongPress?: () => void;
+  progress?: number;
+  remainingLabel?: string;
+  participants?: string[];
+  isPinned?: boolean;
+  status?: "ongoing" | "locked" | "unlocked";
+  isPrivate?: boolean;
+  isFavorite?: boolean;
 };
 
-function TimeCapsuleCardInner({ title, style, imageUrl, id, onPress, progress = 0, remainingLabel, participants }: Props) {
+function TimeCapsuleCardInner({ title, style, imageUrl, id, onPress, onLongPress, progress = 0, remainingLabel, participants, isPinned = false, status = "ongoing", isPrivate = false, isFavorite = false }: Props) {
   const sharedTag = id ? `echo-image-${id}` : undefined;
   const tapGesture = useMemo(() => (
     Gesture.Tap()
@@ -35,10 +40,27 @@ function TimeCapsuleCardInner({ title, style, imageUrl, id, onPress, progress = 
         }
       })
   ), [onPress]);
+  
+  const longPressGesture = useMemo(() => (
+    Gesture.LongPress()
+      .enabled(!!onLongPress)
+      .minDuration(500)
+      .onEnd((_e, success) => {
+        'worklet';
+        if (success && onLongPress) {
+          runOnJS(onLongPress)();
+        }
+      })
+  ), [onLongPress]);
+  
+  const composedGesture = useMemo(() => 
+    Gesture.Exclusive(longPressGesture, tapGesture),
+    [longPressGesture, tapGesture]
+  );
   return (
-    <GestureDetector gesture={tapGesture}>
+    <GestureDetector gesture={composedGesture}>
       <Animated.View
-        style={[styles.card, style as any]}
+        style={[styles.card, style]}
         collapsable={false}
         {...({
           sharedTransitionTag: sharedTag,
@@ -46,39 +68,58 @@ function TimeCapsuleCardInner({ title, style, imageUrl, id, onPress, progress = 
             "worklet";
             return { borderRadius: 0 };
           },
-        } as any)}
+        } as Record<string, unknown>)}
       >
+        {(isPinned || isFavorite) && (
+          <View style={styles.badgeRow}>
+            {isFavorite && (
+              <View style={styles.favoriteBadge}>
+                <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+                <View style={styles.favoriteBadgeOverlay} />
+                <View style={styles.favoriteBadgeContent}>
+                  <Ionicons name="heart" size={14} color={colors.white} style={styles.iconOpacity} />
+                </View>
+              </View>
+            )}
+            {isPinned && (
+              <View style={[styles.pinBadge, isFavorite && styles.pinBadgeOffset]}>
+                <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+                <View style={styles.pinBadgeOverlay} />
+                <View style={styles.pinBadgeContent}>
+                  {Platform.OS === "ios" ? (
+                    <SymbolView
+                      name="pin.fill"
+                      size={14}
+                      type="hierarchical"
+                      tintColor={colors.white}
+                      style={styles.pinRotated}
+                    />
+                  ) : (
+                    <Ionicons name="pin" size={14} color={colors.white} style={styles.pinRotated} />
+                  )}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
         <ImageBackground
         source={imageUrl ? { uri: imageUrl } : undefined}
         resizeMode="cover"
         style={styles.image}
       >
-        <View style={{ flex: 1 }} />
+        <View style={styles.spacer} />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
+          locations={[0, 0.3, 0.6, 1]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.bottomGradient}
+        />
         <View style={styles.blurContainer}>
-          {/* Single masked blur with a small feather (no seams) */}
-          <MaskedView
-            style={StyleSheet.absoluteFill}
-            maskElement={
-              <View style={StyleSheet.absoluteFill}>
-                {/* Feather region: small ramp from transparent to opaque */}
-                <LinearGradient
-                  colors={["rgba(0,0,0,0)", "rgba(0,0,0,1)"]}
-                  locations={[0, 1]}
-                  style={{ position: "absolute", left: 0, right: 0, top: 0, height: 22 }}
-                />
-                {/* Solid mask below: guarantees fully opaque blur to the bottom */}
-                <View style={{ position: "absolute", left: 0, right: 0, top: 20, bottom: 0, backgroundColor: "black" }} />
-              </View>
-            }
-          >
-            <BlurView intensity={32} tint="default" style={StyleSheet.absoluteFill} />
-          </MaskedView>
-          {/* Pure blur only – no color overlays */}
           <View style={styles.textContainer}>
             <Text style={styles.title}>{title}</Text>
-            {/* Meta row: stacked avatars if shared; none if private. Progress adapts to fill when no avatars */}
             <View style={styles.metaRow}>
-              {participants && participants.length > 1 ? (
+              {!isPrivate && participants && participants.length > 0 ? (
                 <View style={styles.avatarsStack}>
                   {participants.slice(0, 5).map((uri, idx, arr) => (
                     <Image
@@ -92,24 +133,26 @@ function TimeCapsuleCardInner({ title, style, imageUrl, id, onPress, progress = 
                     />
                   ))}
                 </View>
-              ) : (
+              ) : isPrivate ? (
                 <View style={styles.privateBadge}>
                   <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
                   <View style={styles.privateBadgeOverlay} />
                   <View style={styles.privateBadgeContent}>
-                    <Ionicons name="lock-closed" size={12} color={colors.white} style={styles.privateIcon} />
                     <Text style={styles.privateBadgeText}>Private</Text>
                   </View>
                 </View>
-              )}
-              <View style={[styles.progressWrapper, !participants || participants.length <= 1 ? styles.progressWrapperPrivate : null]}>
+              ) : null}
+              <View style={[styles.progressWrapper, isPrivate || !participants || participants.length === 0 ? styles.progressWrapperPrivate : null]}>
                 {remainingLabel ? (
                   <Text style={styles.remainingText} numberOfLines={1}>{remainingLabel}</Text>
                 ) : null}
                 <View style={styles.progressTrack}>
+                  <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+                  <View style={styles.progressTrackOverlay} />
                   <View style={[styles.progressBar, { width: `${Math.max(0, Math.min(1, progress)) * 100}%` }]} />
                 </View>
               </View>
+              <StatusBadge status={status} size={28} iconOnly={true} style={styles.statusCircle} />
             </View>
           </View>
         </View>
@@ -119,10 +162,9 @@ function TimeCapsuleCardInner({ title, style, imageUrl, id, onPress, progress = 
   );
 }
 
-const TimeCapsuleCard = React.memo(TimeCapsuleCardInner);
-export default TimeCapsuleCard;
+export default memo(TimeCapsuleCardInner);
 
-const AVATAR_SIZE = 28; // increased to subsume prior border thickness
+const AVATAR_SIZE = 28;
 const TRACK_HEIGHT = 4;
 const LABEL_GAP = 6;
 
@@ -133,10 +175,68 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.surfaceBorder,
+    position: "relative",
+  },
+  badgeRow: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    zIndex: 10,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  favoriteBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  favoriteBadgeOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.lightOverlay,
+  },
+  favoriteBadgeContent: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  pinBadgeOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.lightOverlay,
+  },
+  pinBadgeContent: {
+    alignItems: "center",
+    justifyContent: "center",
   },
   image: {
     width: "100%",
     flex: 1,
+  },
+  bottomGradient: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 120,
   },
   blurContainer: {
     height: sizes.list.cardBlurHeight,
@@ -181,10 +281,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  privateIcon: {
-    marginRight: 6,
-    opacity: 0.9,
-  },
   privateBadgeOverlay: {
     position: "absolute",
     left: 0,
@@ -194,10 +290,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightOverlay,
   },
   privateBadgeText: {
-    color: colors.textPrimary,
+    color: "rgb(213, 213, 213)",
     fontWeight: "600",
     fontSize: 10,
-    opacity: 0.9,
+    opacity: 1,
   },
   progressWrapper: {
     flex: 1,
@@ -206,7 +302,6 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     position: "relative",
   },
-  // Private echoes (no avatars): extend bar to align with title (full width of meta row)
   progressWrapperPrivate: {
     marginLeft: 0,
   },
@@ -225,14 +320,37 @@ const styles = StyleSheet.create({
     right: 0,
     top: AVATAR_SIZE / 2 - TRACK_HEIGHT / 2,
     height: TRACK_HEIGHT,
-    backgroundColor: "rgba(255,255,255,0.35)",
+    backgroundColor: "rgba(0,0,0,0.12)",
     borderRadius: 4,
     overflow: "hidden",
+  },
+  progressTrackOverlay: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.lightOverlay,
   },
   progressBar: {
     height: TRACK_HEIGHT,
     backgroundColor: colors.white,
     borderRadius: 4,
   },
+  statusCircle: {
+    marginLeft: 12,
+  },
+  spacer: {
+    flex: 1,
+  },
+  iconOpacity: {
+    opacity: 0.95,
+  },
+  pinBadgeOffset: {
+    marginLeft: 8,
+  },
+  pinRotated: {
+    opacity: 0.95,
+    transform: [{ rotate: '45deg' }],
+  },
 });
-

@@ -1,221 +1,530 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useNavigation } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Dimensions, Image, ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActionSheetIOS, Alert, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { dummyCapsules } from "../../data/dummyCapsules";
-import { computeCapsuleProgressPercent } from "../../lib/echoes";
+import BottomGradient from "../../components/BottomGradient";
+import EchoContentTabs from "../../components/echo/EchoContentTabs";
+import EchoHeroImage from "../../components/echo/EchoHeroImage";
+import EchoProgressTimeline from "../../components/echo/EchoProgressTimeline";
+import EchoTabBar, { type EchoTab } from "../../components/echo/EchoTabBar";
+import EchoTitle from "../../components/echo/EchoTitle";
+import FloatingActionButton from "../../components/ui/FloatingActionButton";
+import { SCREEN_WIDTH } from "../../constants/dimensions";
+import { dummyFriends } from "../../data/dummyFriends";
+import { useEchoActivities } from "../../hooks/useEchoActivities";
+import { useEchoStorage } from "../../hooks/useEchoStorage";
+import { useEchoTabs } from "../../hooks/useEchoTabs";
+import { useFavoriteEchoes } from "../../hooks/useFavoriteEchoes";
+import { useHeaderTitle } from "../../hooks/useHeaderTitle";
+import { useMediaPicker } from "../../hooks/useMediaPicker";
+import { computeEchoProgressPercent } from "../../lib/echoes";
+import { getExpoSwiftUI } from "../../lib/expoUi";
+import { useHomeEchoContext } from "../../lib/homeEchoContext";
 import { colors, spacing } from "../../theme/theme";
+import type { Echo } from "../../types/echo";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+export default function EchoDetailScreen() {
+  const { id, title: titleParam, imageUrl: imageParam, subtitle: subtitleParam } = useLocalSearchParams<{
+    id: string;
+    title?: string;
+    imageUrl?: string;
+    subtitle?: string;
+  }>();
 
-export default function EchoDetail() {
-  const { id, title: titleParam, imageUrl: imageParam, subtitle: subtitleParam } = useLocalSearchParams<{ id: string; title?: string; imageUrl?: string; subtitle?: string }>();
+  const { getEchoById, addMedia, deleteEcho } = useEchoStorage();
+  const { pickFromCamera, pickFromPhotoLibrary, pickVideo, pickAudio } = useMediaPicker();
+  const { activities } = useEchoActivities(id);
+  
   const capsule = useMemo(() => {
-    const found = dummyCapsules.find(c => c.id === id);
+    const found = getEchoById(id);
     if (found) return found;
-    return { id: String(id), title: titleParam ?? "Echo", subtitle: subtitleParam ?? "", imageUrl: typeof imageParam === "string" ? imageParam : undefined } as any;
-  }, [id, titleParam, imageParam, subtitleParam]);
-  const sharedTag = `echo-image-${id}`;
+    return {
+      id: String(id),
+      title: titleParam ?? "Echo",
+      subtitle: subtitleParam ?? "",
+      imageUrl: typeof imageParam === "string" ? imageParam : undefined,
+      isLocked: false,
+      status: "ongoing" as const,
+      media: [],
+      ownerId: "",
+      isPrivate: true,
+      shareMode: "private" as const,
+    };
+  }, [id, titleParam, imageParam, subtitleParam, getEchoById]);
+
   const navigation = useNavigation();
-  const [showHeaderTitle, setShowHeaderTitle] = useState(false);
-  const titleTopRef = useRef(0);
-  const titleHeightRef = useRef(0);
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const SwiftUI = Platform.OS === "ios" ? getExpoSwiftUI() : null;
+  const scrollViewRef = useRef<ScrollView>(null);
+  
+  const capsuleData = capsule as Echo;
+  const isUnlocked = capsuleData.status === "unlocked";
+  const isLocked = capsuleData.status === "locked";
+  const isOngoing = capsuleData.status === "ongoing";
+  
+  const [currentPage, setCurrentPage] = useState(() => (isUnlocked ? 0 : 1));
+  const scrollX = useSharedValue(0);
 
-  if (!capsule) {
-    return (
-      <View style={[styles.container, { alignItems: "center", justifyContent: "center" }]}>
-        <Text style={{ color: colors.textSecondary }}>Echo not found.</Text>
-      </View>
-    );
-  }
+  const {
+    selectedTab,
+    setSelectedTab,
+    barWidth,
+    setBarWidth,
+    segmentWidth,
+    translateX,
+    indicatorScaleX,
+    isTabTapping,
+    animateToIndex,
+    updateIndicatorPosition,
+  } = useEchoTabs(isUnlocked ? "allMedia" as const : "history" as const);
 
-  const progress = computeCapsuleProgressPercent(capsule);
-  const collaborators = capsule.participants ?? [];
+  const { showHeaderTitle, handleTitleLayout, handleScroll } = useHeaderTitle(insets.top);
+  const { isVisibleOnHome, addToHome, removeFromHome } = useHomeEchoContext();
+  const { isFavorite, toggleFavorite } = useFavoriteEchoes();
+
+  const getAvatarUrls = useCallback((cap: Echo): string[] => {
+    const avatars: string[] = [];
+    
+    if (cap.ownerPhotoURL) {
+      avatars.push(cap.ownerPhotoURL);
+    }
+    
+    if (cap.collaboratorIds && cap.collaboratorIds.length > 0) {
+      cap.collaboratorIds.forEach((collaboratorId) => {
+        const friend = dummyFriends.find((f) => f.id === collaboratorId);
+        if (friend?.photoURL) {
+          avatars.push(friend.photoURL);
+        }
+      });
+    }
+    
+    return avatars;
+  }, []);
+  
+  const collaboratorAvatars = useMemo(() => getAvatarUrls(capsuleData), [capsuleData, getAvatarUrls]);
+  const progress = useMemo(() => computeEchoProgressPercent(capsuleData), [capsuleData]);
+
+  const startDate = useMemo(() => {
+    const createdAtMs = capsuleData.createdAt ? new Date(capsuleData.createdAt).getTime() : Date.now();
+    return new Date(createdAtMs);
+  }, [capsuleData.createdAt]);
+
+  const rightDate = useMemo(() => {
+    if (isOngoing && capsuleData.lockDate) {
+      return new Date(capsuleData.lockDate);
+    }
+    if ((isLocked || isUnlocked) && capsuleData.unlockDate) {
+      return new Date(capsuleData.unlockDate);
+    }
+    return null;
+  }, [isOngoing, isLocked, isUnlocked, capsuleData.lockDate, capsuleData.unlockDate]);
 
   useEffect(() => {
-    navigation.setOptions({ title: showHeaderTitle ? capsule.title : "" });
-  }, [navigation, showHeaderTitle, capsule.title]);
+    const desiredPage = isUnlocked ? 0 : 1;
+    const desiredTab: EchoTab = isUnlocked ? "allMedia" : "history";
+    setSelectedTab(desiredTab);
+    setCurrentPage(desiredPage);
+    requestAnimationFrame(() => {
+      scrollViewRef.current?.scrollTo({ x: desiredPage * SCREEN_WIDTH, animated: false });
+    });
+  }, [isUnlocked, setSelectedTab]);
+
+  const handlePageChange = useCallback(
+    (page: number) => {
+      setCurrentPage(page);
+      setSelectedTab(page === 0 ? "allMedia" : "history");
+    },
+    [setSelectedTab]
+  );
+
+  const handleTabPress = useCallback(
+    (tab: EchoTab) => {
+      // Block navigation to allMedia if echo is not unlocked
+      const nextTab = tab === "allMedia" && !isUnlocked ? "history" : tab;
+      setSelectedTab(nextTab);
+      const newPage = nextTab === "allMedia" ? 0 : 1;
+      setCurrentPage(newPage);
+
+      isTabTapping.current = true;
+      scrollViewRef.current?.scrollTo({ x: newPage * SCREEN_WIDTH, animated: true });
+      animateToIndex(newPage);
+
+      setTimeout(() => {
+        isTabTapping.current = false;
+      }, 300);
+    },
+    [setSelectedTab, animateToIndex, isTabTapping, isUnlocked]
+  );
+
+  const handlePlusButtonPress = useCallback(() => {
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: "Add Content",
+          message: "Choose the type of content to add",
+          options: ["Take Photo", "Photo Library", "Record Video", "Record Audio", "Cancel"],
+          cancelButtonIndex: 4,
+        },
+        async (buttonIndex) => {
+          if (buttonIndex === 0) {
+            const media = await pickFromCamera();
+            if (media) {
+              addMedia(capsule.id, { ...media, uploadedBy: "local" });
+            }
+          } else if (buttonIndex === 1) {
+            const media = await pickFromPhotoLibrary();
+            if (media) {
+              addMedia(capsule.id, { ...media, uploadedBy: "local" });
+            }
+          } else if (buttonIndex === 2) {
+            const media = await pickVideo();
+            if (media) {
+              addMedia(capsule.id, { ...media, uploadedBy: "local" });
+            }
+          } else if (buttonIndex === 3) {
+            const media = await pickAudio();
+            if (media) {
+              addMedia(capsule.id, { ...media, uploadedBy: "local" });
+            }
+          }
+        }
+      );
+    } else {
+      Alert.alert(
+        "Add Content",
+        "Choose the type of content to add",
+        [
+          {
+            text: "Take Photo",
+            onPress: async () => {
+              const media = await pickFromCamera();
+              if (media) {
+                addMedia(capsule.id, { ...media, uploadedBy: "local" });
+              }
+            },
+          },
+          {
+            text: "Photo Library",
+            onPress: async () => {
+              const media = await pickFromPhotoLibrary();
+              if (media) {
+                addMedia(capsule.id, { ...media, uploadedBy: "local" });
+              }
+            },
+          },
+          {
+            text: "Record Video",
+            onPress: async () => {
+              const media = await pickVideo();
+              if (media) {
+                addMedia(capsule.id, { ...media, uploadedBy: "local" });
+              }
+            },
+          },
+          {
+            text: "Record Audio",
+            onPress: async () => {
+              const media = await pickAudio();
+              if (media) {
+                addMedia(capsule.id, { ...media, uploadedBy: "local" });
+              }
+            },
+          },
+          { text: "Cancel", style: "cancel" },
+        ]
+      );
+    }
+  }, [pickFromCamera, pickFromPhotoLibrary, pickVideo, pickAudio, addMedia, capsule.id]);
+
+  const handleMoreOptions = useCallback(() => {
+    const onHome = isVisibleOnHome(capsule.id);
+    
+    if (Platform.OS === "ios") {
+      const options = onHome 
+        ? ["Edit", "Remove from Home", "Cancel"]
+        : ["Edit", "Add to Home", "Cancel"];
+      
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 2,
+          destructiveButtonIndex: onHome ? 1 : undefined,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 0) {
+            router.push({ pathname: "/echo/[id]/edit", params: { id: String(capsule.id) } });
+          } else if (buttonIndex === 1) {
+            if (onHome) {
+              Alert.alert(
+                "Remove from Home",
+                `Remove "${capsule.title}" from home screen? You can still find it in your library.`,
+                [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Remove", style: "destructive", onPress: () => removeFromHome(capsule.id) },
+                ]
+              );
+            } else {
+              addToHome(capsule.id);
+            }
+          }
+        }
+      );
+    } else {
+      const buttons = onHome
+        ? [
+            { text: "Edit", onPress: () => router.push({ pathname: "/echo/[id]/edit", params: { id: String(capsule.id) } }) },
+            { text: "Remove from Home", onPress: () => removeFromHome(capsule.id), style: "destructive" as const },
+            { text: "Cancel", style: "cancel" as const },
+          ]
+        : [
+            { text: "Edit", onPress: () => router.push({ pathname: "/echo/[id]/edit", params: { id: String(capsule.id) } }) },
+            { text: "Add to Home", onPress: () => addToHome(capsule.id) },
+            { text: "Cancel", style: "cancel" as const },
+          ];
+      
+      Alert.alert("Echo Options", "", buttons, { cancelable: true });
+    }
+  }, [capsule.id, capsule.title, isVisibleOnHome, addToHome, removeFromHome, router]);
+
+  const handleDelete = useCallback(() => {
+    Alert.alert(
+      "Delete Echo",
+      `Are you sure you want to delete "${capsule.title}"? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const success = await deleteEcho(capsule.id);
+            if (success) {
+              router.back();
+            }
+          },
+        },
+      ]
+    );
+  }, [capsule, deleteEcho, router]);
+
+  useEffect(() => {
+    const onHome = isVisibleOnHome(capsule.id);
+    const favorited = isFavorite(capsule.id);
+    
+    navigation.setOptions({
+      title: showHeaderTitle ? capsule.title : "",
+      headerRight: () => (
+        <View style={styles.headerRight}>
+          <Pressable 
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              toggleFavorite(capsule.id);
+            }} 
+            hitSlop={12} 
+            accessibilityRole="button" 
+            style={styles.iconButton}
+          >
+            <Ionicons 
+              name={favorited ? "heart" : "heart-outline"} 
+              size={24} 
+              color={colors.textPrimary} 
+            />
+          </Pressable>
+          {Platform.OS === "ios" && SwiftUI ? (
+            <SwiftUI.Host style={styles.swiftUIHost}>
+              <SwiftUI.ContextMenu>
+                <SwiftUI.ContextMenu.Items>
+                  <SwiftUI.Button 
+                    systemImage="pencil" 
+                    onPress={() => router.push({ pathname: "/echo/[id]/edit", params: { id: String(capsule.id) } })}
+                  >
+                    Edit
+                  </SwiftUI.Button>
+                  <SwiftUI.Button 
+                    systemImage={onHome ? "house.fill" : "house"} 
+                    onPress={() => {
+                      if (onHome) {
+                        Alert.alert(
+                          "Remove from Home",
+                          `Remove "${capsule.title}" from home screen? You can still find it in your library.`,
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            { text: "Remove", style: "destructive", onPress: () => removeFromHome(capsule.id) },
+                          ]
+                        );
+                      } else {
+                        addToHome(capsule.id);
+                      }
+                    }}
+                  >
+                    {onHome ? "Remove from Home" : "Add to Home"}
+                  </SwiftUI.Button>
+                  <SwiftUI.Button 
+                    systemImage="trash" 
+                    role="destructive" 
+                    onPress={handleDelete}
+                  >
+                    Delete
+                  </SwiftUI.Button>
+                </SwiftUI.ContextMenu.Items>
+                <SwiftUI.ContextMenu.Trigger>
+                  <SwiftUI.Image systemName="ellipsis" />
+                </SwiftUI.ContextMenu.Trigger>
+              </SwiftUI.ContextMenu>
+            </SwiftUI.Host>
+          ) : (
+            <Pressable 
+              onPress={handleMoreOptions} 
+              hitSlop={12} 
+              accessibilityRole="button" 
+              style={styles.iconButton}
+            >
+              <Ionicons name="ellipsis-horizontal" size={24} color={colors.textPrimary} />
+            </Pressable>
+          )}
+        </View>
+      ),
+    });
+  }, [navigation, showHeaderTitle, capsule.title, capsule.id, handleMoreOptions, handleDelete, addToHome, removeFromHome, isVisibleOnHome, isFavorite, toggleFavorite, router, SwiftUI]);
 
   return (
     <View style={styles.container}>
-      <Animated.ScrollView
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         bounces
-        overScrollMode="always"
+        showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
-        onScroll={(e: any) => {
-          const y = e?.nativeEvent?.contentOffset?.y ?? 0;
-          // Reveal header title only after the on-screen title has fully scrolled past the top edge
-          const extraOffset = insets.top + 24; // delay to ensure it's well past the top edge under the translucent header
-          const threshold = Math.max(0, titleTopRef.current + titleHeightRef.current + extraOffset);
-          if (y >= threshold && !showHeaderTitle) setShowHeaderTitle(true);
-          if (y < threshold && showHeaderTitle) setShowHeaderTitle(false);
+        onScroll={(e) => {
+          const y = e.nativeEvent.contentOffset.y;
+          handleScroll(y);
         }}
       >
-        <Animated.View
-          {...({
-            sharedTransitionTag: sharedTag,
-            sharedTransitionStyle: () => {
-              "worklet";
-              return { borderRadius: 0 };
-            },
-          } as any)}
-          style={styles.heroContainer}
-        >
-          <Animated.Image
-            source={capsule.imageUrl ? { uri: capsule.imageUrl } : undefined}
-            resizeMode="cover"
-            style={styles.hero}
-          />
-        </Animated.View>
+        <EchoHeroImage imageUrl={capsule.imageUrl} sharedTag={`echo-image-${id}`} />
 
-        <View style={styles.content}>
-          <Text
-            style={styles.title}
-            onLayout={e => {
-              titleTopRef.current = e.nativeEvent.layout.y;
-              titleHeightRef.current = e.nativeEvent.layout.height;
-            }}
-          >
-            {capsule.title}
-          </Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressBar, { width: `${Math.max(0, Math.min(1, progress)) * 100}%` }]} />
+        <View style={styles.contentContainer}>
+          {/* Hero Section */}
+          <View style={styles.heroSection}>
+            <View style={styles.titleContainer}>
+              <EchoTitle title={capsule.title} onLayout={handleTitleLayout} />
+            </View>
+
+            <EchoProgressTimeline 
+              startDate={startDate} 
+              endDate={rightDate} 
+              progress={progress} 
+              participants={collaboratorAvatars}
+              isPrivate={capsuleData.isPrivate}
+              status={capsuleData.status}
+            />
           </View>
-          {collaborators.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.collaboratorsRow}
-            >
-              {collaborators.map((uri: string, idx: number) => (
-                <Image key={`col-${idx}`} source={{ uri }} style={styles.avatar} />
-              ))}
-            </ScrollView>
-          ) : (
-            <View style={styles.privateBadge}>
-              <View style={styles.privateBadgeOverlay} />
-              <View style={styles.privateBadgeContent}>
-                <Ionicons name="lock-closed" size={12} color={colors.white} style={styles.privateIcon} />
-                <Text style={styles.privateBadgeText}>Private</Text>
-              </View>
-            </View>
-          )}
 
-          {/* Fake sections to demo scrolling */}
-          {Array.from({ length: 16 }).map((_, index) => (
-            <View key={`sec-${index}`} style={styles.fakeRow}>
-              <Text style={styles.fakeTitle}>{`Section ${index + 1}`}</Text>
-              <Text style={styles.fakeSubtitle}>Example content for this section.</Text>
-            </View>
-          ))}
+          {/* Bottom card containing tabs and content */}
+          <View style={styles.bottomCard}>
+            <EchoTabBar
+              selectedTab={selectedTab}
+              onTabPress={handleTabPress}
+              barWidth={barWidth}
+              segmentWidth={segmentWidth}
+              translateX={translateX}
+              indicatorScaleX={indicatorScaleX}
+              onLayout={setBarWidth}
+              allLocked={!isUnlocked}
+            />
+
+            <EchoContentTabs
+              isLocked={!isUnlocked}
+              media={capsule.media}
+              activities={activities}
+              scrollViewRef={scrollViewRef}
+              currentPage={currentPage}
+              onPageChange={handlePageChange}
+              onScroll={(scrollOffset) => {
+                scrollX.value = scrollOffset;
+                updateIndicatorPosition(scrollOffset, SCREEN_WIDTH);
+              }}
+              isTabTapping={isTabTapping}
+              scrollEnabled={isUnlocked}
+              onMediaPress={(item) => {
+                // Media viewer to be implemented
+                Alert.alert("Media", `Viewing ${item.type}: ${item.uri.split("/").pop()}`);
+              }}
+            />
+          </View>
         </View>
-      </Animated.ScrollView>
+      </ScrollView>
+
+      <BottomGradient />
+
+      {/* Only show + button for ongoing echoes (locked/unlocked echoes can't add content) */}
+      {isOngoing && (
+        <FloatingActionButton
+          onPress={handlePlusButtonPress}
+          style={styles.floatingButton}
+        />
+      )}
     </View>
   );
 }
 
-const HERO_HEIGHT = Math.round(SCREEN_WIDTH * 0.75);
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.black,
   },
   scrollContent: {
     paddingBottom: spacing.xxl,
     paddingTop: 0,
   },
-  heroContainer: {
-    width: "100%",
-    height: HERO_HEIGHT,
-    backgroundColor: colors.surface,
+  contentContainer: {
+    paddingTop: 0,
   },
-  hero: {
-    width: "100%",
-    height: "100%",
-  },
-  content: {
+  heroSection: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
   },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 28,
-    fontWeight: "700",
-    marginBottom: spacing.lg,
+  titleContainer: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+    marginTop: 0,
   },
-  progressTrack: {
-    height: 6,
-    backgroundColor: "rgba(255,255,255,0.25)",
-    borderRadius: 4,
-    overflow: "hidden",
-    marginBottom: spacing.lg,
+  bottomCard: {
+    backgroundColor: colors.black,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    marginTop: 0,
+    paddingBottom: spacing.xxl + spacing.xl + 20,
   },
-  progressBar: {
-    height: 6,
-    backgroundColor: colors.white,
-    borderRadius: 4,
+  floatingButton: {
+    position: "absolute",
+    bottom: spacing.xl,
+    right: spacing.lg,
   },
-  collaboratorsRow: {
-    paddingVertical: spacing.md,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: spacing.md,
-  },
-  fakeRow: {
-    paddingVertical: spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.surfaceBorder,
-  },
-  fakeTitle: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  fakeSubtitle: {
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  privateBadge: {
-    alignSelf: "flex-start",
-    height: 28,
-    borderRadius: 14,
-    paddingHorizontal: 12,
+  notFoundContainer: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
-    backgroundColor: "rgba(0,0,0,0.12)",
+    backgroundColor: colors.black,
   },
-  privateBadgeOverlay: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: colors.lightOverlay,
+  notFoundText: {
+    color: colors.textSecondary,
   },
-  privateBadgeContent: {
+  headerRight: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
   },
-  privateIcon: {
-    marginRight: 6,
-    opacity: 0.9,
+  iconButton: {
+    padding: 4,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  privateBadgeText: {
-    color: colors.textPrimary,
-    fontWeight: "600",
-    fontSize: 10,
-    opacity: 0.9,
+  swiftUIHost: {
+    width: 35,
+    height: 35,
   },
-  
 });
-
-

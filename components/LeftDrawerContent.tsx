@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import { useRouter } from "expo-router";
+import { Fragment, memo, useMemo, useRef, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { dummyCapsules } from "../data/dummyCapsules";
-import { searchCapsules } from "../lib/echoes";
+import { useEchoStorage } from "../hooks/useEchoStorage";
+import { searchEchoes } from "../lib/echoes";
 import { colors, sizes, spacing } from "../theme/theme";
 import type { NotifKey } from "../types/notifications";
 import BottomGradient from "./BottomGradient";
@@ -12,21 +13,23 @@ import NotificationsBottomBar from "./NotificationsBottomBar";
 import ProfileUpdateItem from "./ProfileUpdateItem";
 import RightDrawerSearchBar from "./RightDrawerSearchBar";
 import TopGradient from "./TopGradient";
+import EmptyState from "./ui/EmptyState";
 
 type LeftDrawerContentProps = {
   insetTop: number;
 };
 
-export default function LeftDrawerContent({ insetTop }: LeftDrawerContentProps) {
+function LeftDrawerContent({ insetTop }: LeftDrawerContentProps) {
   const insets = useSafeAreaInsets();
   const top = insetTop ?? insets.top;
-  const [filter, setFilter] = React.useState<NotifKey>("all");
-  const [query, setQuery] = React.useState("");
-  const [isEditing, setIsEditing] = React.useState(false);
-  const scrollRef = React.useRef<any>(null);
+  const [filter, setFilter] = useState<NotifKey>("all");
+  const [query, setQuery] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
+  useEchoStorage();
+  const scrollRef = useRef<any>(null);
   const topBarOffset = top;
   const topPadding = topBarOffset + sizes.floatingBar.height + spacing.xl;
-  const leftTabTitle = React.useMemo(() => {
+  const leftTabTitle = useMemo(() => {
     switch (filter) {
       case "friendRequests": return "Social";
       case "regular": return "Personal";
@@ -35,12 +38,12 @@ export default function LeftDrawerContent({ insetTop }: LeftDrawerContentProps) 
     }
   }, [filter]);
   return (
-    <View style={[styles.container, { paddingTop: 0 }]}> 
+    <View style={styles.container}> 
       <DrawerScroll scrollRef={scrollRef} topPadding={topPadding} bottomPadding={sizes.list.bottomPadding} indicatorSide="right">
         <ContentWidth>
           <Text style={styles.sectionTitle}>{leftTabTitle}</Text>
         </ContentWidth>
-        <View style={{ height: spacing.lg }} />
+        <View style={styles.spacer} />
         <ContentWidth>
           {query.trim().length > 0 ? (
             <MemoQueryResults q={query} />
@@ -56,11 +59,11 @@ export default function LeftDrawerContent({ insetTop }: LeftDrawerContentProps) 
       {/* Top overlay/blur mirrored from right drawer, rendered above content, with safe area blackout */}
       <TopGradient safeTop={top - 10} />
       {/* Top bar: search + Cancel like right drawer */}
-      <View style={{ position: "absolute", left: 16, right: 16, top: topBarOffset }}>
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
+      <View style={[styles.topBar, { top: topBarOffset }]}>
+        <View style={styles.topBarRow}>
           <RightDrawerSearchBar
             title="Notifications"
-            style={{ flex: 1, marginRight: spacing.md }}
+            style={styles.searchBarFlex}
             value={query}
             onChangeText={setQuery}
             isEditing={isEditing}
@@ -72,12 +75,12 @@ export default function LeftDrawerContent({ insetTop }: LeftDrawerContentProps) 
               accessibilityRole="button"
               hitSlop={12}
               onPress={() => { setQuery(""); setIsEditing(false); }}
-              style={{ paddingHorizontal: 8, paddingVertical: 8 }}
+              style={styles.cancelButton}
             >
-              <Text style={{ color: colors.textPrimary, fontWeight: "700" }}>Cancel</Text>
+              <Text style={styles.cancelText}>Cancel</Text>
             </Pressable>
           ) : (
-            <Pressable accessibilityRole="button" hitSlop={12} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center" }}>
+            <Pressable accessibilityRole="button" hitSlop={12} style={styles.moreButton}>
               <Ionicons name="ellipsis-vertical" size={20} color={colors.textPrimary} />
             </Pressable>
           )}
@@ -98,81 +101,146 @@ export default function LeftDrawerContent({ insetTop }: LeftDrawerContentProps) 
 }
 
 function PersonalUpdates() {
-  const aboutToChange: Array<{ kind: "lock" | "unlock"; title: string; coverUri: string }> = [];
-  const lockedSoon = dummyCapsules.filter(c => c.status === "ongoing").slice(0, 2);
-  const unlockedSoon = dummyCapsules.filter(c => c.status === "locked").slice(0, 2);
-  lockedSoon.forEach(c => aboutToChange.push({ kind: "lock", title: c.title, coverUri: c.imageUrl }));
-  unlockedSoon.forEach(c => aboutToChange.push({ kind: "unlock", title: c.title, coverUri: c.imageUrl }));
+  const { echoes } = useEchoStorage();
+  const lockedSoon = echoes.filter(c => c.status === "ongoing").slice(0, 2);
+  const unlockedSoon = echoes.filter(c => c.status === "locked").slice(0, 2);
+  
+  const aboutToChange = [
+    ...lockedSoon.filter(c => c.imageUrl).map(c => ({ 
+      kind: "lock" as const, 
+      title: c.title, 
+      coverUri: c.imageUrl!,
+      participants: c.collaboratorIds,
+      userAvatarUri: "https://picsum.photos/seed/user/100/100"
+    })),
+    ...unlockedSoon.filter(c => c.imageUrl).map(c => ({ 
+      kind: "unlock" as const, 
+      title: c.title, 
+      coverUri: c.imageUrl!,
+      participants: c.collaboratorIds,
+      userAvatarUri: "https://picsum.photos/seed/user/100/100"
+    }))
+  ];
+  
+  if (aboutToChange.length === 0) {
+    return (
+      <EmptyState
+        icon="notifications-outline"
+        title="No Updates"
+        subtitle="You'll see notifications about your echoes here"
+      />
+    );
+  }
+  
   return (
     <>
       {aboutToChange.map((n, idx) => (
-        <React.Fragment key={`${n.kind}-${idx}`}>
-          {idx > 0 ? <View style={{ height: spacing.xs }} /> : null}
-          <ProfileUpdateItem kind={n.kind} title={n.title} coverUri={n.coverUri} />
-        </React.Fragment>
+        <Fragment key={`${n.kind}-${idx}`}>
+          {idx > 0 && <View style={styles.itemSpacer} />}
+          <ProfileUpdateItem 
+            kind={n.kind} 
+            title={n.title} 
+            coverUri={n.coverUri}
+            participants={n.participants}
+            userAvatarUri={n.userAvatarUri}
+          />
+        </Fragment>
       ))}
     </>
   );
 }
 
 function SocialUpdates() {
-  const social = dummyCapsules.filter(c => (c.participants && c.participants.length > 1)).slice(0, 6);
+  const router = useRouter();
+  const { echoes } = useEchoStorage();
+  const social = echoes.filter(c => (c.collaboratorIds && c.collaboratorIds.length > 0)).slice(0, 6);
+  
+  if (social.length === 0) {
+    return (
+      <EmptyState
+        icon="people-outline"
+        title="No Social Activity"
+        subtitle="Friend notifications will appear here"
+      />
+    );
+  }
+  
   return (
     <>
       {social.map((c, idx) => {
+        const friendId = String(idx + 1);
         const friendName = `Friend ${idx + 1}`;
         const friendAvatar = `https://picsum.photos/seed/friend-${c.id}-${idx}/100/100`;
         const variant = idx % 4;
+        const handlePress = () => router.push({ pathname: "/friend/[id]", params: { id: friendId, name: friendName, avatar: friendAvatar } });
+        
         return (
-          <React.Fragment key={`s-${c.id}`}>
-            {idx > 0 ? <View style={{ height: spacing.xs }} /> : null}
+          <Fragment key={`s-${c.id}`}>
+            {idx > 0 && <View style={styles.itemSpacer} />}
             {variant === 0 ? (
-              <ProfileUpdateItem kind="friend_request" friendName={friendName} friendAvatarUri={friendAvatar} />
+              <ProfileUpdateItem kind="friend_request" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} onPress={handlePress} />
             ) : variant === 1 ? (
-              <ProfileUpdateItem kind="friend_accepted" friendName={friendName} friendAvatarUri={friendAvatar} />
+              <ProfileUpdateItem kind="friend_accepted" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} onPress={handlePress} />
             ) : variant === 2 ? (
-              <ProfileUpdateItem kind="friend_added_to_echo" friendName={friendName} friendAvatarUri={friendAvatar} echoTitle={c.title} coverUri={c.imageUrl} />
+              <ProfileUpdateItem kind="friend_added_to_echo" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} echoTitle={c.title} coverUri={c.imageUrl} onPress={handlePress} />
             ) : (
-              <ProfileUpdateItem kind="friend_added_content" friendName={friendName} friendAvatarUri={friendAvatar} photosCount={(Number(c.id) % 5) + 1} coverUri={c.imageUrl} echoTitle={c.title} />
+              <ProfileUpdateItem kind="friend_added_content" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} photosCount={(Number(c.id) % 5) + 1} coverUri={c.imageUrl} echoTitle={c.title} onPress={handlePress} />
             )}
-          </React.Fragment>
+          </Fragment>
         );
       })}
     </>
   );
 }
 
-const MemoPersonalUpdates = React.memo(PersonalUpdates);
-const MemoSocialUpdates = React.memo(SocialUpdates);
-const MemoAllUpdates = React.memo(function AllUpdates() {
+const MemoPersonalUpdates = memo(PersonalUpdates);
+const MemoSocialUpdates = memo(SocialUpdates);
+const MemoAllUpdates = memo(function AllUpdates() {
+  const router = useRouter();
+  const { echoes } = useEchoStorage();
   // Build personal + social items with pseudo-timestamps and sort desc
-  type Item = { ts: number; node: React.ReactNode };
+  type Item = { ts: number; node: ReactNode };
   const items: Item[] = [];
   let order = 1000;
-  const pushGap = (key: string) => items.push({ ts: order--, node: <View key={key} style={{ height: spacing.xs }} /> });
+  const pushGap = (key: string) => items.push({ ts: order--, node: <View key={key} style={styles.itemSpacer} /> });
 
-  const personalLocks = dummyCapsules.filter(c => c.status === "ongoing").slice(0, 2);
-  const personalUnlocks = dummyCapsules.filter(c => c.status === "locked").slice(0, 2);
+  const personalLocks = echoes.filter(c => c.status === "ongoing").slice(0, 2);
+  const personalUnlocks = echoes.filter(c => c.status === "locked").slice(0, 2);
   personalLocks.forEach((c, i) => {
-    items.push({ ts: order--, node: <ProfileUpdateItem key={`pl-${c.id}-${i}`} kind="lock" title={c.title} coverUri={c.imageUrl} /> });
+    items.push({ ts: order--, node: <ProfileUpdateItem key={`pl-${c.id}-${i}`} kind="lock" title={c.title} coverUri={c.imageUrl || ""} participants={c.collaboratorIds} userAvatarUri="https://picsum.photos/seed/user/100/100" /> });
     pushGap(`gap-pl-${c.id}-${i}`);
   });
   personalUnlocks.forEach((c, i) => {
-    items.push({ ts: order--, node: <ProfileUpdateItem key={`pu-${c.id}-${i}`} kind="unlock" title={c.title} coverUri={c.imageUrl} /> });
+    items.push({ ts: order--, node: <ProfileUpdateItem key={`pu-${c.id}-${i}`} kind="unlock" title={c.title} coverUri={c.imageUrl || ""} participants={c.collaboratorIds} userAvatarUri="https://picsum.photos/seed/user/100/100" /> });
     pushGap(`gap-pu-${c.id}-${i}`);
   });
 
-  const social = dummyCapsules.filter(c => (c.participants && c.participants.length > 1)).slice(0, 6);
+  const social = echoes.filter(c => (c.collaboratorIds && c.collaboratorIds.length > 0)).slice(0, 6);
+  
+  if (items.length === 0 && social.length === 0) {
+    return (
+      <ContentWidth>
+        <EmptyState
+          icon="notifications-outline"
+          title="No Notifications"
+          subtitle="All your updates will appear here"
+        />
+      </ContentWidth>
+    );
+  }
   social.forEach((c, idx) => {
+    const friendId = String(idx + 1);
     const friendName = `Friend ${idx + 1}`;
     const friendAvatar = `https://picsum.photos/seed/friend-${c.id}-${idx}/100/100`;
     const variant = idx % 4;
     const key = `s-${c.id}-${variant}`;
-    let node: React.ReactNode;
-    if (variant === 0) node = <ProfileUpdateItem key={key} kind="friend_request" friendName={friendName} friendAvatarUri={friendAvatar} />;
-    else if (variant === 1) node = <ProfileUpdateItem key={key} kind="friend_accepted" friendName={friendName} friendAvatarUri={friendAvatar} />;
-    else if (variant === 2) node = <ProfileUpdateItem key={key} kind="friend_added_to_echo" friendName={friendName} friendAvatarUri={friendAvatar} echoTitle={c.title} coverUri={c.imageUrl} />;
-    else node = <ProfileUpdateItem key={key} kind="friend_added_content" friendName={friendName} friendAvatarUri={friendAvatar} photosCount={(Number(c.id) % 5) + 1} coverUri={c.imageUrl} />;
+    const handlePress = () => router.push({ pathname: "/friend/[id]", params: { id: friendId, name: friendName, avatar: friendAvatar } });
+    
+    let node: ReactNode;
+    if (variant === 0) node = <ProfileUpdateItem key={key} kind="friend_request" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} onPress={handlePress} />;
+    else if (variant === 1) node = <ProfileUpdateItem key={key} kind="friend_accepted" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} onPress={handlePress} />;
+    else if (variant === 2) node = <ProfileUpdateItem key={key} kind="friend_added_to_echo" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} echoTitle={c.title} coverUri={c.imageUrl || ""} onPress={handlePress} />;
+    else node = <ProfileUpdateItem key={key} kind="friend_added_content" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} photosCount={(Number(c.id) % 5) + 1} coverUri={c.imageUrl || ""} onPress={handlePress} />;
     items.push({ ts: order--, node });
     pushGap(`gap-${key}`);
   });
@@ -183,20 +251,34 @@ const MemoAllUpdates = React.memo(function AllUpdates() {
 });
 
 function QueryResults({ q }: { q: string }) {
-  const hits = React.useMemo(() => searchCapsules(dummyCapsules, q), [q]);
+  const { echoes } = useEchoStorage();
+  const hits = useMemo(() => searchEchoes(echoes, q), [echoes, q]);
+  
+  if (hits.length === 0) {
+    return (
+      <EmptyState
+        icon="search-outline"
+        title="No Results"
+        subtitle={`No echoes match "${q}"`}
+      />
+    );
+  }
+  
   return (
     <>
       {hits.map((c, idx) => (
-        <React.Fragment key={`q-${c.id}`}>
-          {idx > 0 ? <View style={{ height: spacing.sm - 30 }} /> : null}
-          <ProfileUpdateItem kind="friend_added_content" friendName={c.title} friendAvatarUri={`https://picsum.photos/seed/q-${c.id}/100/100`} photosCount={(Number(c.id) % 5) + 1} coverUri={c.imageUrl} />
-        </React.Fragment>
+        <Fragment key={`q-${c.id}`}>
+          {idx > 0 && <View style={styles.itemSpacer} />}
+          <ProfileUpdateItem kind="friend_added_content" friendName={c.title} friendAvatarUri={`https://picsum.photos/seed/q-${c.id}/100/100`} photosCount={(Number(c.id) % 5) + 1} coverUri={c.imageUrl || ""} />
+        </Fragment>
       ))}
     </>
   );
 }
 
-const MemoQueryResults = React.memo(QueryResults);
+const MemoQueryResults = memo(QueryResults);
+
+export default memo(LeftDrawerContent);
 
 const styles = StyleSheet.create({
   container: {
@@ -217,6 +299,37 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
   },
+  spacer: {
+    height: spacing.lg,
+  },
+  itemSpacer: {
+    height: spacing.xs,
+  },
+  topBar: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+  },
+  topBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  searchBarFlex: {
+    flex: 1,
+    marginRight: spacing.md,
+  },
+  cancelButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  cancelText: {
+    color: colors.textPrimary,
+    fontWeight: "700",
+  },
+  moreButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });
-
-

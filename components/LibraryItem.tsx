@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Image, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Dimensions, Image, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { GestureConfig } from "../config/ui";
-import { colors, radii } from "../theme/theme";
+import { HERO_HEIGHT } from "../constants/dimensions";
+import { colors, radii, spacing } from "../theme/theme";
 
 type Props = {
   title: string;
@@ -17,6 +18,7 @@ type Props = {
   textColor?: string;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
+  onLongPress?: () => void;
   coverWidth?: number;
 };
 
@@ -31,6 +33,7 @@ function LibraryItem({
   textColor,
   style,
   onPress,
+  onLongPress,
   coverWidth,
 }: Props) {
   const tapGesture = React.useMemo(() => {
@@ -45,6 +48,21 @@ function LibraryItem({
       });
   }, [onPress]);
 
+  const longPressGesture = React.useMemo(() => {
+    return Gesture.LongPress()
+      .minDuration(500)
+      .onEnd((_evt, success) => {
+        'worklet';
+        if (success && onLongPress) {
+          runOnJS(onLongPress)();
+        }
+      });
+  }, [onLongPress]);
+
+  const composedGesture = React.useMemo(() => {
+    return Gesture.Exclusive(longPressGesture, tapGesture);
+  }, [longPressGesture, tapGesture]);
+
   const cw = Math.max(40, Math.round(coverWidth ?? COVER_WIDTH));
   const content = (
     <View style={styles.inner}>
@@ -58,22 +76,17 @@ function LibraryItem({
       <View style={styles.centerCluster}>
         <Text style={[
           styles.title,
-          { color: textColor ?? colors.white, marginBottom: completed ? 0 : 6 }
+          { color: textColor ?? colors.white }
         ]} numberOfLines={1}>
           {title}
         </Text>
-        {!completed ? (
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressBar, { width: `${Math.max(0, Math.min(1, progress)) * 100}%` }]} />
-          </View>
-        ) : null}
       </View>
       <View style={{ width: 12 }} />
     </View>
   );
 
   return (
-    <GestureDetector gesture={tapGesture}>
+    <GestureDetector gesture={composedGesture}>
       <Pressable
         accessibilityRole={onPress ? "button" : undefined}
         android_ripple={onPress && Platform.OS === "android" ? { color: "rgba(255,255,255,0.12)" } : undefined}
@@ -100,8 +113,19 @@ export default React.memo(LibraryItem);
 
 const ITEM_HEIGHT = 56; // keep row height
 const CONTAINER_RADIUS = 20; // keep overall shape on right side
-const COVER_WIDTH = 64; // shorter width
-const COVER_HEIGHT = 48; // taller height
+
+// Calculate exact homescreen card dimensions
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const HOMESCREEN_CARD_WIDTH = SCREEN_WIDTH - spacing.lg * 2; // subtract horizontal padding
+const HOMESCREEN_CARD_HEIGHT = HERO_HEIGHT; // SCREEN_WIDTH * 0.4
+const HOMESCREEN_CARD_RADIUS = radii.card; // 30
+
+// Scale down to fit drawer while maintaining exact aspect ratio
+const COVER_HEIGHT = 40; // shorter height for better visual consistency
+const SCALE_FACTOR = COVER_HEIGHT / HOMESCREEN_CARD_HEIGHT;
+const COVER_WIDTH = Math.round(HOMESCREEN_CARD_WIDTH * SCALE_FACTOR);
+const COVER_RADIUS = Math.round(HOMESCREEN_CARD_RADIUS * SCALE_FACTOR);
+
 const STATUS_ICON_SIZE = 24;
 const STATUS_ICON_TOP = (ITEM_HEIGHT - STATUS_ICON_SIZE) / 2; // center vertically
 
@@ -129,7 +153,7 @@ const styles = StyleSheet.create({
   thumbnail: {
     width: COVER_WIDTH,
     height: COVER_HEIGHT,
-    borderRadius: 8,
+    borderRadius: COVER_RADIUS,
     backgroundColor: "#222",
   },
   statusBadgeRight: {
@@ -145,24 +169,12 @@ const styles = StyleSheet.create({
   },
   centerCluster: {
     flex: 1,
-    justifyContent: "center", // vertically center title + progress bar
+    justifyContent: "center", // vertically center title
     paddingRight: STATUS_ICON_SIZE + 12, // reserve space for the centered status icon
   },
   title: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "700",
-    marginBottom: 6, // consistent gap between title and progress bar
-  },
-  progressTrack: {
-    height: 4,
-    backgroundColor: "rgba(255,255,255,0.35)",
-    borderRadius: 4,
-    overflow: "hidden",
-    marginRight: 0,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: colors.white,
   },
 });
 

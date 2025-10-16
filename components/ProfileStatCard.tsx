@@ -1,6 +1,5 @@
-import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, radii, spacing } from "../theme/theme";
 
 type Props = {
@@ -14,7 +13,7 @@ type Props = {
   onPress?: () => void;
 };
 
-export default function ProfileStatCard({ icon, value, label, square = false, aspectRatio, compact = false, horizontal = false, onPress }: Props) {
+function ProfileStatCard({ icon, value, label, square = false, aspectRatio, compact = false, horizontal = false, onPress }: Props) {
   if (horizontal) {
     return (
       <Pressable onPress={onPress} style={[styles.cardRow]} accessibilityRole="button">

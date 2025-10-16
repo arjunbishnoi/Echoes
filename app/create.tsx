@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import React, { useEffect, useRef, useState } from "react";
+import { useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     Alert,
     Animated,
@@ -16,6 +17,9 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KEYBOARD_ANIMATION } from "../constants/animations";
+import { useEchoStorage } from "../hooks/useEchoStorage";
+import { useEchoDraft } from "../lib/echoDraft";
 import { colors, radii, sizes, spacing } from "../theme/theme";
 
 export default function CreateEchoScreen() {
@@ -24,6 +28,9 @@ export default function CreateEchoScreen() {
   const nameInputRef = useRef<TextInput>(null);
   const translateUp = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { createEcho } = useEchoStorage();
+  const { isPrivate, collaboratorIds, lockDate, unlockDate } = useEchoDraft();
 
   const hasName = echoName.trim().length > 0;
 
@@ -34,7 +41,7 @@ export default function CreateEchoScreen() {
     return () => clearTimeout(timer);
   }, []);
 
-  async function requestAndPickImage() {
+  const requestAndPickImage = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
       Alert.alert("Permission needed", "We need access to your photos to pick a cover image.");
@@ -50,30 +57,61 @@ export default function CreateEchoScreen() {
     if (!result.canceled) {
       setCoverImageUri(result.assets[0]?.uri);
     }
-  }
+  }, []);
 
-  function onCreateEcho() {
+  const onCreateEcho = useCallback(async () => {
     if (!hasName) return;
-    // For now just show a confirmation. Integrate API/navigation as needed.
-    Alert.alert("Echo created", `Name: ${echoName}`);
-  }
+    
+    try {
+      const newEcho = await createEcho({
+        title: echoName.trim(),
+        imageUrl: coverImageUri,
+        status: "ongoing",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isPrivate: isPrivate,
+        shareMode: isPrivate ? "private" : "shared",
+        collaboratorIds: isPrivate ? [] : collaboratorIds,
+        // Add lock/unlock dates if set
+        ...(lockDate && { lockDate: lockDate.toISOString() }),
+        ...(unlockDate && { unlockDate: unlockDate.toISOString() }),
+      });
+      
+      Alert.alert("Echo Created!", `"${echoName}" has been created successfully.`, [
+        {
+          text: "OK",
+          onPress: () => {
+            router.back();
+            // Navigate to the new echo
+            setTimeout(() => {
+              router.push({ pathname: "/echo/[id]", params: { id: newEcho.id } });
+            }, 300);
+          },
+        },
+      ]);
+    } catch (error) {
+      console.error("Failed to create echo:", error);
+      Alert.alert("Error", "Failed to create echo. Please try again.");
+    }
+  }, [hasName, echoName, coverImageUri, isPrivate, collaboratorIds, lockDate, unlockDate, createEcho, router]);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const clearance = 0; // keep small gap above the keyboard
-    const onShow = (e: any) => {
-      const height = e?.endCoordinates?.height ?? 0;
-      const duration = e?.duration ?? 280;
+
+    const handleKeyboardShow = (event: any) => {
+      const height = event?.endCoordinates?.height ?? 0;
+      const duration = event?.duration ?? KEYBOARD_ANIMATION.show[Platform.OS === "ios" ? "ios" : "android"];
       Animated.timing(translateUp, {
-        toValue: Math.max(0, height - (insets.bottom + clearance)),
+        toValue: Math.max(0, height - insets.bottom),
         duration,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start();
     };
-    const onHide = (e: any) => {
-      const duration = e?.duration ?? 220;
+
+    const handleKeyboardHide = (event: any) => {
+      const duration = event?.duration ?? KEYBOARD_ANIMATION.hide[Platform.OS === "ios" ? "ios" : "android"];
       Animated.timing(translateUp, {
         toValue: 0,
         duration,
@@ -81,83 +119,85 @@ export default function CreateEchoScreen() {
         useNativeDriver: true,
       }).start();
     };
-    const subShow = Keyboard.addListener(showEvent, onShow);
-    const subHide = Keyboard.addListener(hideEvent, onHide);
+
+    const showSubscription = Keyboard.addListener(showEvent, handleKeyboardShow);
+    const hideSubscription = Keyboard.addListener(hideEvent, handleKeyboardHide);
+
     return () => {
-      subShow.remove();
-      subHide.remove();
+      showSubscription.remove();
+      hideSubscription.remove();
     };
   }, [translateUp, insets.bottom]);
 
   return (
-    <View style={{ flex: 1 }}>
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.contentContainer, { paddingBottom: sizes.list.bottomPadding + spacing.xl }]}
-      contentInsetAdjustmentBehavior="automatic"
-      keyboardShouldPersistTaps="handled"
-    >
-      <Pressable onPress={requestAndPickImage} style={styles.coverPressable} accessibilityRole="button" accessibilityLabel="Pick cover photo">
-        <View style={styles.coverContainer}>
-          {coverImageUri ? (
-            <ImageBackground source={{ uri: coverImageUri }} resizeMode="cover" style={styles.coverImage}>
-              <View style={styles.coverOverlay} />
-              <View style={styles.coverCta}>
-                <Ionicons name="image" size={18} color={colors.white} />
-                <Text style={styles.coverCtaText}>Change cover photo</Text>
-              </View>
-            </ImageBackground>
-          ) : (
-            <View style={[styles.coverImage, styles.coverPlaceholder]}> 
-              <Ionicons name="image" size={24} color={colors.textSecondary} />
-              <Text style={styles.coverPlaceholderText}>Add cover photo</Text>
-            </View>
-          )}
-        </View>
-      </Pressable>
-
-      <View style={styles.fieldGroup}>
-        <TextInput
-          style={styles.textInput}
-          placeholder="Echo Name"
-          placeholderTextColor="#BEBEBE"
-          value={echoName}
-          onChangeText={setEchoName}
-          autoCapitalize="sentences"
-          autoCorrect
-          selectionColor={colors.white}
-          ref={nameInputRef}
-          autoFocus
-        />
-      </View>
-
-      {/* Settings (privacy, collaborators, dates) moved to settings modal */}
-
-    </ScrollView>
-    <Animated.View style={[
-      styles.footerContainer,
-      {
-        paddingBottom: insets.bottom + spacing.lg,
-        transform: [{ translateY: Animated.multiply(translateUp, -1) }],
-      },
-    ]}>
-      <Pressable
-        onPress={onCreateEcho}
-        disabled={!hasName}
-        style={[styles.createButton, !hasName && styles.createButtonDisabled]}
-        accessibilityRole="button"
-        accessibilityLabel="Create Echo"
+    <View style={styles.wrapper}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: sizes.list.bottomPadding + spacing.xl }]}
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
       >
-        <Text style={[styles.createButtonText, !hasName && styles.createButtonTextDisabled]}>Create Echo</Text>
-      </Pressable>
-    </Animated.View>
+        <Pressable onPress={requestAndPickImage} style={styles.coverPressable} accessibilityRole="button" accessibilityLabel="Pick cover photo">
+          <View style={styles.coverContainer}>
+            {coverImageUri ? (
+              <ImageBackground source={{ uri: coverImageUri }} resizeMode="cover" style={styles.coverImage}>
+                <View style={styles.coverOverlay} />
+                <View style={styles.coverCta}>
+                  <Ionicons name="image" size={18} color={colors.white} />
+                  <Text style={styles.coverCtaText}>Change cover photo</Text>
+                </View>
+              </ImageBackground>
+            ) : (
+              <View style={[styles.coverImage, styles.coverPlaceholder]}>
+                <Ionicons name="image" size={24} color={colors.textSecondary} />
+                <Text style={styles.coverPlaceholderText}>Add cover photo</Text>
+              </View>
+            )}
+          </View>
+        </Pressable>
+
+        <View style={styles.fieldGroup}>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Echo Name"
+            placeholderTextColor={colors.textSecondary}
+            value={echoName}
+            onChangeText={setEchoName}
+            autoCapitalize="sentences"
+            autoCorrect
+            selectionColor={colors.white}
+            ref={nameInputRef}
+            autoFocus
+          />
+        </View>
+      </ScrollView>
+      <Animated.View
+        style={[
+          styles.footerContainer,
+          {
+            paddingBottom: insets.bottom + spacing.lg,
+            transform: [{ translateY: Animated.multiply(translateUp, -1) }],
+          },
+        ]}
+      >
+        <Pressable
+          onPress={onCreateEcho}
+          disabled={!hasName}
+          style={[styles.createButton, !hasName && styles.createButtonDisabled]}
+          accessibilityRole="button"
+          accessibilityLabel="Create Echo"
+        >
+          <Text style={[styles.createButtonText, !hasName && styles.createButtonTextDisabled]}>Create Echo</Text>
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
 
-const AVATAR_SIZE = 56;
-
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.modalSurface,
@@ -233,71 +273,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
     fontSize: 16,
   },
-  rowInline: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.surfaceBorder,
-  },
-  rowLabel: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  rowValue: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  section: {
-    paddingTop: spacing.lg,
-  },
-  sectionTitle: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: spacing.md,
-  },
-  avatarsRow: {
-    paddingVertical: spacing.sm,
-  },
-  avatarWrap: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: 100,
-    marginRight: spacing.md,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  avatarWrapSelected: {
-    borderColor: colors.white,
-  },
-  avatarImage: {
-    width: "100%",
-    height: "100%",
-  },
-  avatarSelectedBadge: {
-    position: "absolute",
-    right: 2,
-    bottom: 2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: colors.white,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  rowPressable: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.surfaceBorder,
-  },
   createButton: {
     marginTop: spacing.md,
     backgroundColor: colors.white,
@@ -318,4 +293,3 @@ const styles = StyleSheet.create({
     color: colors.black,
   },
 });
-
