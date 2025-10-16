@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../lib/authContext";
 import { colors, radii, spacing } from "../../theme/theme";
 
@@ -28,18 +29,13 @@ export default function SignInScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["bottom"]}>
       <View style={styles.content}>
-        {/* Logo/Branding */}
         <View style={styles.brandingContainer}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>E</Text>
-          </View>
+          <Ionicons name="lock-closed" size={40} color={colors.white} />
           <Text style={styles.appName}>Echoes</Text>
-          <Text style={styles.tagline}>Capture moments, unlock memories</Text>
         </View>
 
-        {/* Features List */}
         <View style={styles.featuresContainer}>
           <FeatureItem
             icon="time-outline"
@@ -57,58 +53,48 @@ export default function SignInScreen() {
             description="Set dates to lock and unlock your precious memories"
           />
         </View>
-
-        {/* Sign In Buttons */}
-        <View style={styles.signInContainer}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.googleButton,
-              pressed && styles.googleButtonPressed,
-              (isSigningIn || isLoading) && styles.googleButtonDisabled,
-            ]}
-            onPress={handleGoogleSignIn}
-            disabled={isSigningIn || isLoading}
-            accessibilityRole="button"
-            accessibilityLabel="Sign in with Google"
-          >
-            {isSigningIn || isLoading ? (
-              <ActivityIndicator color={colors.textSecondary} />
-            ) : (
-              <>
-                <Ionicons name="logo-google" size={24} color={colors.textPrimary} />
-                <Text style={styles.googleButtonText}>Continue with Google</Text>
-              </>
-            )}
-          </Pressable>
-
-          <Pressable
-            style={styles.guestButton}
-            onPress={async () => {
-              try {
-                await signInAsGuest();
-                router.replace("/(main)/home");
-              } catch (error) {
-                console.error("Guest sign in error:", error);
-                Alert.alert("Error", "Unable to continue as guest. Please try again.");
-              }
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Continue as Guest"
-          >
-            <Text style={styles.guestButtonText}>Continue as Guest</Text>
-          </Pressable>
-
-          <Text style={styles.disclaimer}>
-            By continuing, you agree to our Terms of Service and Privacy Policy
-          </Text>
-        </View>
       </View>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Echoes • iOS & Android</Text>
+      <View style={styles.signInContainer}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.googleButton,
+            pressed && styles.googleButtonPressed,
+            (isSigningIn || isLoading) && styles.googleButtonDisabled,
+          ]}
+          onPress={handleGoogleSignIn}
+          disabled={isSigningIn || isLoading}
+          accessibilityRole="button"
+          accessibilityLabel="Sign in with Google"
+        >
+          {isSigningIn || isLoading ? (
+            <ActivityIndicator color={colors.textSecondary} />
+          ) : (
+            <>
+              <Ionicons name="logo-google" size={24} color={colors.black} />
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </>
+          )}
+        </Pressable>
+
+        <Pressable
+          style={styles.guestButton}
+          onPress={async () => {
+            try {
+              await signInAsGuest();
+              router.replace("/(main)/home");
+            } catch (error) {
+              console.error("Guest sign in error:", error);
+              Alert.alert("Error", "Unable to continue as guest. Please try again.");
+            }
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Continue as Guest"
+        >
+          <Text style={styles.guestButtonText}>Continue as Guest</Text>
+        </Pressable>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -140,41 +126,22 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: spacing.xxl,
-    paddingTop: spacing.xxl * 3,
-    paddingBottom: spacing.xxl,
+    justifyContent: "center",
   },
   brandingContainer: {
-    alignItems: "center",
-    marginBottom: spacing.xxl * 2,
-  },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.white,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.lg,
-  },
-  logoText: {
-    fontSize: 40,
-    fontWeight: "800",
-    color: colors.black,
+    marginBottom: spacing.xxl * 2,
+    gap: spacing.md,
   },
   appName: {
-    fontSize: 32,
+    fontSize: 40,
     fontWeight: "800",
     color: colors.textPrimary,
-    marginBottom: spacing.sm,
-  },
-  tagline: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: "center",
   },
   featuresContainer: {
     gap: spacing.xl,
-    marginBottom: spacing.xxl * 2,
   },
   featureItem: {
     flexDirection: "row",
@@ -205,6 +172,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   signInContainer: {
+    paddingHorizontal: spacing.xxl,
+    paddingBottom: spacing.xxl,
     gap: spacing.lg,
   },
   googleButton: {
@@ -240,20 +209,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: colors.textPrimary,
-  },
-  disclaimer: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  footer: {
-    paddingBottom: spacing.xl,
-    alignItems: "center",
-  },
-  footerText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: "600",
   },
 });
