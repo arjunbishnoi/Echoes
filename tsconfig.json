@@ -10,14 +10,13 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "noEmit": true,
+    "baseUrl": ".",
     "types": [
       "react",
       "react-native"
     ],
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./src/*"]
     }
   },
   "include": [

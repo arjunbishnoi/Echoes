@@ -57,3 +57,26 @@ app-example
 # generated native folders
 /ios
 /android
+
+# AI coding assistants and tools
+.cursor/
+.cursorrules
+cursor.log
+.copilot/
+.github/copilot/
+.claude/
+.anthropic/
+*.claude.md
+.aider*
+*.prompt.md
+.ai/
+ai-context/
+.cody/
+.tabnine/
+.windsurf/
+v0-*
+.continue/
+*.ai.md
+.roo/
+.aide/
+ai-chat-history.json

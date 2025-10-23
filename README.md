@@ -1,16 +1,16 @@
 # Echoes
 
-A beautiful time capsule app built with Expo and Firebase. Create, share, and unlock memories with friends.
+A time capsule app built with Expo and Firebase. Create, share, and unlock memories with friends.
 
 ## Features
 
-- 🔐 **Secure Authentication** - Google Sign-In with Firebase Auth
-- 📸 **Rich Media** - Photos, videos, audio, and documents
-- 👥 **Collaborative Echoes** - Share time capsules with friends
-- 🔒 **Time Locks** - Set dates to lock and unlock memories
-- 📱 **Cross-Platform** - Works on iOS, Android, and Web
-- ⚡ **Real-time Sync** - Live updates with Firestore
-- 🎨 **Beautiful UI** - Modern design with smooth animations
+- Secure Authentication - Google Sign-In with Firebase Auth
+- Rich Media - Photos, videos, audio, and documents
+- Collaborative Echoes - Share time capsules with friends
+- Time Locks - Set dates to lock and unlock memories
+- Cross-Platform - Works on iOS, Android, and Web
+- Real-time Sync - Live updates with Firestore
+- Beautiful UI - Modern design with smooth animations
 
 ## Quick Start
 
@@ -31,7 +31,6 @@ npm install
 cp .env.example .env
 
 # Configure your Firebase credentials in .env
-# See FIREBASE.md for detailed setup instructions
 
 # Start development server
 npm start
@@ -44,11 +43,11 @@ npm run web        # Web
 
 ## Firebase Setup
 
-See [`FIREBASE.md`](./FIREBASE.md) for detailed Firebase configuration instructions including:
-- Creating a Firebase project
-- Configuring Google OAuth
-- Setting up Firestore and Storage
-- Firestore security rules
+1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com)
+2. Enable Authentication (Google Sign-In)
+3. Create Firestore Database
+4. Enable Firebase Storage
+5. Get your Firebase config and add to `.env` file
 
 ## Project Structure
 
@@ -144,6 +143,6 @@ MIT License - see LICENSE file for details
 ## Support
 
 For issues and questions:
-- Check `FIREBASE.md` for Firebase setup help
+- Check Firebase documentation
 - Review the TypeScript types in `/types`
-- See inline code documentation
+- See inline code comments
