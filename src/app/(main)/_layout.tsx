@@ -1,6 +1,6 @@
 import { BackButton } from "@/components/BackButton";
 import { colors } from "@/theme/theme";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import { StyleSheet } from "react-native";
 
 export default function MainLayout() {
@@ -15,7 +15,7 @@ export default function MainLayout() {
       />
       <Stack.Screen
         name="echo/[id]"
-        options={({ navigation }) => ({
+        options={{
           headerShown: true,
           title: "",
           headerBackTitle: "",
@@ -31,13 +31,13 @@ export default function MainLayout() {
           fullScreenGestureEnabled: false,
           gestureDirection: "horizontal",
           headerBackVisible: false,
-          headerLeft: () => <BackButton onPress={() => navigation.goBack()} />,
+          headerLeft: () => <BackButton onPress={() => router.back()} />,
           contentStyle: { backgroundColor: colors.background },
-        })}
+        }}
       />
       <Stack.Screen
         name="echo/[id]/edit"
-        options={({ navigation }) => ({
+        options={{
           headerShown: true,
           title: "Edit Echo",
           presentation: "card",
@@ -50,10 +50,11 @@ export default function MainLayout() {
           headerShadowVisible: false,
           gestureEnabled: true,
           headerBackVisible: false,
-          headerLeft: () => <BackButton onPress={() => navigation.goBack()} size={26} style={styles.backButton} />,
+          headerLeft: () => <BackButton onPress={() => router.back()} size={26} style={styles.backButton} />,
           contentStyle: { backgroundColor: colors.background },
-        })}
+        }}
       />
+      {/** friend/[id]/edit is declared via file-based routing; explicit registration removed to avoid duplication */}
     </Stack>
   );
 }

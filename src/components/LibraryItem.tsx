@@ -1,7 +1,7 @@
 import { GestureConfig } from "@/config/ui";
 import { HERO_HEIGHT } from "@/constants/dimensions";
 import { colors, radii, spacing } from "@/theme/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useMemo } from "react";
 import { Dimensions, Image, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -10,11 +10,8 @@ import { runOnJS } from "react-native-reanimated";
 type Props = {
   title: string;
   thumbnailUri?: string;
-  gradientColors?: [string, string];
-  solidColor?: string;
   locked?: boolean;
   completed?: boolean;
-  progress?: number; // 0..1
   textColor?: string;
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
@@ -25,11 +22,8 @@ type Props = {
 function LibraryItem({
   title,
   thumbnailUri,
-  gradientColors,
-  solidColor,
   locked,
   completed,
-  progress = 0,
   textColor,
   style,
   onPress,

@@ -1,7 +1,7 @@
 import BottomBarBackground from "@/components/BottomBarBackground";
 import AudioWaveform from "@/components/echo/AudioWaveform";
 import { colors, sizes } from "@/theme/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { setAudioModeAsync } from "expo-audio";
 import { Audio as AV } from "expo-av";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -21,15 +21,10 @@ type Props = {
   onPause: () => void;
   onResume: () => void;
   isPaused?: boolean;
-  recordingUri?: string | null;
   recordingDurationMs?: number;
   levels?: number[];
   allLevels?: number[];
   getPlaybackSoundAsync?: () => Promise<import("expo-av").Audio.Sound | null>;
-  onPressCamera: () => void;
-  onPressGallery: () => void;
-  onPressAudio: () => void;
-  onPressFiles: () => void;
   skipInitialAnimation?: boolean;
   hasStagedMedia?: boolean;
 };
@@ -47,15 +42,10 @@ export default function AudioRecordingBottomBar({
   onPause,
   onResume,
   isPaused = false,
-  recordingUri,
   recordingDurationMs = 0,
   levels,
   allLevels,
   getPlaybackSoundAsync,
-  onPressCamera,
-  onPressGallery,
-  onPressAudio,
-  onPressFiles,
   skipInitialAnimation = false,
   hasStagedMedia = false,
 }: Props) {

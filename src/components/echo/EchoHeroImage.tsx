@@ -4,10 +4,9 @@ import { Image, StyleSheet, View } from "react-native";
 
 interface EchoHeroImageProps {
   imageUrl?: string;
-  sharedTag: string;
 }
 
-function EchoHeroImage({ imageUrl, sharedTag }: EchoHeroImageProps) {
+function EchoHeroImage({ imageUrl }: EchoHeroImageProps) {
   return (
     <View style={styles.container}>
       <Image
@@ -16,7 +15,6 @@ function EchoHeroImage({ imageUrl, sharedTag }: EchoHeroImageProps) {
         resizeMode="cover"
         style={styles.image}
         fadeDuration={0}
-        priority="high"
       />
     </View>
   );

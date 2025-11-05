@@ -9,6 +9,7 @@ export const colors = {
   white: "#FFFFFF",
   black: "#000000",
   lightOverlay: "rgba(255,255,255,0.10)",
+  blue: "#007AFF",
 };
 
 export const spacing = {

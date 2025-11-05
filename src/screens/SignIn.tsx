@@ -1,6 +1,6 @@
 import { colors, radii, spacing } from "@/theme/theme";
 import { useAuth } from "@/utils/authContext";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter, type Href } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";

@@ -2,7 +2,7 @@ import BottomBarBackground from "@/components/BottomBarBackground";
 import MediaGalleryViewer from "@/components/MediaGalleryViewer";
 import { colors, sizes } from "@/theme/theme";
 import type { EchoMedia } from "@/types/echo";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, {

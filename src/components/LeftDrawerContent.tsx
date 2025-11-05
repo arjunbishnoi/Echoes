@@ -9,7 +9,7 @@ import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { colors, sizes, spacing } from "@/theme/theme";
 import type { NotifKey } from "@/types/notifications";
 import { searchEchoes } from "@/utils/echoes";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter } from "expo-router";
 import { Fragment, memo, useMemo, useRef, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";

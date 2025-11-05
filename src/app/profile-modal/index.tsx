@@ -1,11 +1,11 @@
-import Constants from "expo-constants";
-import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { UnifiedFormSection } from "@/components/forms/UnifiedForm";
 import { UnifiedFormRow } from "@/components/forms/UnifiedFormRow";
-import { useAuth } from "@/utils/authContext";
 import { colors, radii, spacing } from "@/theme/theme";
+import { useAuth } from "@/utils/authContext";
+import Constants from "expo-constants";
+import { useRouter, type Href } from "expo-router";
+import { useState } from "react";
+import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 export default function ProfileModal() {
   const router = useRouter();
@@ -58,7 +58,7 @@ export default function ProfileModal() {
           leftIcon="people-outline"
           systemImage="person.2"
           showChevron
-          onPress={() => router.push("/friends")}
+          onPress={() => router.push("/profile-modal/friends" as Href)}
           accessibilityLabel="Friends"
         />
         <UnifiedFormRow
@@ -66,7 +66,7 @@ export default function ProfileModal() {
           leftIcon="albums-outline"
           systemImage="square.stack.3d.up"
           showChevron
-          onPress={() => router.push("/echoes")}
+          onPress={() => router.push("/echoes" as Href)}
           accessibilityLabel="Echoes Library"
         />
         <UnifiedFormRow
@@ -174,3 +174,5 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 });
+
+

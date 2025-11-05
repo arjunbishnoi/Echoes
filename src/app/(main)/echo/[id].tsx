@@ -15,40 +15,34 @@ import type { Echo } from "@/types/echo";
 import { computeEchoProgressPercent } from "@/utils/echoes";
 import { getExpoSwiftUI } from "@/utils/expoUi";
 import { useHomeEchoContext } from "@/utils/homeEchoContext";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionSheetIOS, Alert, Animated, Image, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-const EchoContentTabs = React.lazy(() => import("@/components/echo/EchoContentTabs"));
-const EchoHeroImage = React.lazy(() => import("@/components/echo/EchoHeroImage"));
-const EchoProgressTimeline = React.lazy(() => import("@/components/echo/EchoProgressTimeline"));
-const ImageGradientOverlay = React.lazy(() => import("@/components/echo/ImageGradientOverlay"));
-const MediaGalleryViewer = React.lazy(() => import("@/components/MediaGalleryViewer"));
-const RecordingArea = React.lazy(() => import("@/components/echo/RecordingArea"));
+import EchoContentTabs from "@/components/echo/EchoContentTabs";
+import EchoHeroImage from "@/components/echo/EchoHeroImage";
+import EchoProgressTimeline from "@/components/echo/EchoProgressTimeline";
+import ImageGradientOverlay from "@/components/echo/ImageGradientOverlay";
+import MediaGalleryViewer from "@/components/MediaGalleryViewer";
+import RecordingArea from "@/components/echo/RecordingArea";
 
 export default function EchoDetailScreen() {
   const { id } = useLocalSearchParams<{
     id: string;
   }>();
 
-  // Defer heavy operations until after initial render
-  const [isInitialized, setIsInitialized] = useState(false);
-  
-  const { getEchoById, addMedia, addMediaBatch, deleteEcho, isLoading } = useEchoStorage();
-  // Audio and media picking are moved to lazy RecordingArea to reduce initial bundle
-  
-  // Defer activities loading until History tab is viewed
+  const { getEchoById, addMediaBatch, deleteEcho, isLoading } = useEchoStorage();
   const { activities, load: loadActivities } = useEchoActivities(id, { defer: true });
   
   const capsule = useMemo(() => {
     return getEchoById(id);
   }, [id, getEchoById]);
 
-  const navigation = useNavigation();
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const SwiftUI = Platform.OS === "ios" ? getExpoSwiftUI() : null;
   const scrollViewRef = useRef<ScrollView>(null);
@@ -63,9 +57,8 @@ export default function EchoDetailScreen() {
   const [stagedMedia, setStagedMedia] = useState<import("@/types/echo").EchoMedia[]>([]);
   const [transitioningFromRecording, setTransitioningFromRecording] = useState(false);
   
-  // Reset and initialize when ID changes
+  // Reset state when ID changes
   useEffect(() => {
-    // Batch state reset
     setUiState({
       galleryVisible: false,
       selectedMediaIndex: 0,
@@ -73,12 +66,6 @@ export default function EchoDetailScreen() {
     });
     setStagedMedia([]);
     scrollX.value = 0;
-    setIsInitialized(false);
-    
-    // Initialize immediately for faster perceived performance
-    setTimeout(() => {
-      setIsInitialized(true);
-    }, 0);
   }, [id, scrollX]);
   
   const capsuleData = capsule ?? ({} as Echo);
@@ -105,8 +92,6 @@ export default function EchoDetailScreen() {
     barWidth,
     setBarWidth,
     segmentWidth,
-    translateX,
-    indicatorScaleX,
     isTabTapping,
     animateToIndex,
     updateIndicatorPosition,
@@ -116,49 +101,38 @@ export default function EchoDetailScreen() {
   const { isVisibleOnHome, addToHome, removeFromHome } = useHomeEchoContext();
   const { isFavorite, toggleFavorite } = useFavoriteEchoes();
 
-  // Defer heavy computations - only compute when initialized
-  const [collaboratorAvatars, setCollaboratorAvatars] = useState<string[]>([]);
-  
-  useEffect(() => {
-    if (!isInitialized || !capsule) return;
+  const collaboratorAvatars = useMemo(() => {
+    const avatars: string[] = [];
     
-    // Defer to next frame for smoother navigation
-    const timeoutId = setTimeout(() => {
-      const avatars: string[] = [];
-      
-      if (capsuleData.ownerPhotoURL) {
-        avatars.push(capsuleData.ownerPhotoURL);
-      }
-      
-      if (capsuleData.collaboratorIds && capsuleData.collaboratorIds.length > 0) {
-        capsuleData.collaboratorIds.forEach((collaboratorId) => {
-          const friend = dummyFriends.find((f) => f.id === collaboratorId);
-          if (friend?.photoURL) {
-            avatars.push(friend.photoURL);
-          }
-        });
-      }
-      
-      setCollaboratorAvatars(avatars);
-    }, 0);
+    if (capsuleData.ownerPhotoURL) {
+      avatars.push(capsuleData.ownerPhotoURL);
+    }
     
-    return () => clearTimeout(timeoutId);
-  }, [isInitialized, capsule, capsuleData.ownerPhotoURL, capsuleData.collaboratorIds]);
+    if (capsuleData.collaboratorIds && capsuleData.collaboratorIds.length > 0) {
+      capsuleData.collaboratorIds.forEach((collaboratorId) => {
+        const friend = dummyFriends.find((f) => f.id === collaboratorId);
+        if (friend?.photoURL) {
+          avatars.push(friend.photoURL);
+        }
+      });
+    }
+    
+    return avatars;
+  }, [capsuleData.ownerPhotoURL, capsuleData.collaboratorIds]);
   
-  // Optimize progress calculation - only when needed
   const progress = useMemo(() => {
-    if (!isInitialized || !capsule) return 0;
+    if (!capsule) return 0;
     return computeEchoProgressPercent(capsuleData);
-  }, [isInitialized, capsule, capsuleData.status, capsuleData.lockDate, capsuleData.unlockDate]);
+  }, [capsule, capsuleData.status, capsuleData.lockDate, capsuleData.unlockDate]);
 
   const startDate = useMemo(() => {
-    if (!isInitialized || !capsule) return new Date();
+    if (!capsule) return new Date();
     const createdAtMs = capsuleData.createdAt ? new Date(capsuleData.createdAt).getTime() : Date.now();
     return new Date(createdAtMs);
-  }, [isInitialized, capsule, capsuleData.createdAt]);
+  }, [capsule, capsuleData.createdAt]);
 
   const rightDate = useMemo(() => {
-    if (!isInitialized || !capsule) return null;
+    if (!capsule) return null;
     if (isOngoing && capsuleData.lockDate) {
       return new Date(capsuleData.lockDate);
     }
@@ -166,7 +140,7 @@ export default function EchoDetailScreen() {
       return new Date(capsuleData.unlockDate);
     }
     return null;
-  }, [isInitialized, capsule, isOngoing, isLocked, isUnlocked, capsuleData.lockDate, capsuleData.unlockDate]);
+  }, [capsule, isOngoing, isLocked, isUnlocked, capsuleData.lockDate, capsuleData.unlockDate]);
 
   // Combine scroll reset and page update for better performance
   useEffect(() => {
@@ -302,40 +276,44 @@ export default function EchoDetailScreen() {
 
   // Memoize header buttons to prevent re-creation
   const HeaderRightButtons = useMemo(() => {
-    if (!capsule) return () => null;
-    
+    if (!capsule) {
+      const EmptyHeaderRight: React.FC = () => null;
+      EmptyHeaderRight.displayName = "HeaderRightEmpty";
+      return EmptyHeaderRight;
+    }
+
     const onHome = isVisibleOnHome(capsule.id);
     const favorited = isFavorite(capsule.id);
-    
-    return () => (
+
+    const HeaderRight: React.FC = () => (
       <View style={styles.headerRight}>
-        <Pressable 
+        <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             toggleFavorite(capsule.id);
-          }} 
-          hitSlop={12} 
-          accessibilityRole="button" 
+          }}
+          hitSlop={12}
+          accessibilityRole="button"
           style={styles.iconButton}
         >
-          <Ionicons 
-            name={favorited ? "heart" : "heart-outline"} 
-            size={24} 
-            color={colors.textPrimary} 
+          <Ionicons
+            name={favorited ? "heart" : "heart-outline"}
+            size={24}
+            color={colors.textPrimary}
           />
         </Pressable>
         {Platform.OS === "ios" && SwiftUI ? (
           <SwiftUI.Host style={styles.swiftUIHost}>
             <SwiftUI.ContextMenu>
               <SwiftUI.ContextMenu.Items>
-                <SwiftUI.Button 
-                  systemImage="pencil" 
+                <SwiftUI.Button
+                  systemImage="pencil"
                   onPress={() => router.push({ pathname: "/(main)/echo/[id]/edit", params: { id: String(capsule.id) } })}
                 >
                   Edit
                 </SwiftUI.Button>
-                <SwiftUI.Button 
-                  systemImage={onHome ? "house.fill" : "house"} 
+                <SwiftUI.Button
+                  systemImage={onHome ? "house.fill" : "house"}
                   onPress={() => {
                     if (onHome) {
                       Alert.alert(
@@ -353,9 +331,9 @@ export default function EchoDetailScreen() {
                 >
                   {onHome ? "Remove from Home" : "Add to Home"}
                 </SwiftUI.Button>
-                <SwiftUI.Button 
-                  systemImage="trash" 
-                  role="destructive" 
+                <SwiftUI.Button
+                  systemImage="trash"
+                  role="destructive"
                   onPress={handleDelete}
                 >
                   Delete
@@ -367,10 +345,10 @@ export default function EchoDetailScreen() {
             </SwiftUI.ContextMenu>
           </SwiftUI.Host>
         ) : (
-          <Pressable 
-            onPress={handleMoreOptions} 
-            hitSlop={12} 
-            accessibilityRole="button" 
+          <Pressable
+            onPress={handleMoreOptions}
+            hitSlop={12}
+            accessibilityRole="button"
             style={styles.iconButton}
           >
             <Ionicons name="ellipsis-horizontal" size={24} color={colors.textPrimary} />
@@ -378,9 +356,11 @@ export default function EchoDetailScreen() {
         )}
       </View>
     );
+    HeaderRight.displayName = "HeaderRightButtons";
+    return HeaderRight;
   }, [capsule, isVisibleOnHome, isFavorite, toggleFavorite, handleMoreOptions, handleDelete, addToHome, removeFromHome, router, SwiftUI]);
 
-  // Update navigation options only when header title or shadow changes
+  // Update navigation header when title or shadow changes
   useEffect(() => {
     navigation.setOptions({
       title: showHeaderTitle ? capsule?.title : "",
@@ -412,13 +392,6 @@ export default function EchoDetailScreen() {
     }
   }, [capsule?.imageUrl]);
 
-  // Progressive hydration for instant perceived load
-  const [isHydrated, setIsHydrated] = useState(false);
-  
-  useEffect(() => {
-    setIsHydrated(true);
-  }, [id]);
-
   // Show loading state while echoes are being loaded
   if (isLoading) {
     return (
@@ -441,7 +414,7 @@ export default function EchoDetailScreen() {
     );
   }
 
-  if (__DEV__) console.log("EchoNavRender:", Date.now());
+  // dev log removed to reduce terminal noise
   
   return (
     <Animated.View key={id} style={[styles.container, { opacity: fadeAnim }]}>
@@ -457,19 +430,15 @@ export default function EchoDetailScreen() {
           setUiState(prev => ({ ...prev, showHeaderShadow: y > 5 }));
         }}
       >
-        <Suspense fallback={null}>
-          <ImageGradientOverlay 
-            key={`gradient-${id}`}
-            imageUrl={capsule.imageUrl} 
-            echoId={capsule.id} 
-            height={800} 
-          />
-          <EchoHeroImage 
-            key={`hero-${id}`}
-            imageUrl={capsule.imageUrl} 
-            sharedTag={`echo-image-${id}`} 
-          />
-        </Suspense>
+        <ImageGradientOverlay 
+          key={`gradient-${id}`}
+          echoId={capsule.id} 
+          height={800} 
+        />
+        <EchoHeroImage 
+          key={`hero-${id}`}
+          imageUrl={capsule.imageUrl} 
+        />
 
         <View style={styles.contentContainer}>
           {/* Hero Section */}
@@ -478,85 +447,71 @@ export default function EchoDetailScreen() {
               <EchoTitle title={capsule.title} onLayout={handleTitleLayout} />
             </View>
 
-            {isHydrated && (
-              <Suspense fallback={null}>
-                <EchoProgressTimeline 
-                  startDate={startDate} 
-                  endDate={rightDate} 
-                  progress={progress} 
-                  participants={collaboratorAvatars}
-                  isPrivate={capsuleData.isPrivate}
-                  status={capsuleData.status}
-                />
-              </Suspense>
-            )}
+            <EchoProgressTimeline 
+              startDate={startDate} 
+              endDate={rightDate} 
+              progress={progress} 
+              participants={collaboratorAvatars}
+              isPrivate={capsuleData.isPrivate}
+              status={capsuleData.status}
+            />
           </View>
 
           {/* Bottom card containing tabs and content */}
-          {isHydrated && (
-            <View style={styles.bottomCard}>
-              <EchoTabBar
-                selectedTab={selectedTab}
-                onTabPress={handleTabPress}
-                barWidth={barWidth}
-                segmentWidth={segmentWidth}
-                translateX={translateX}
-                indicatorScaleX={indicatorScaleX}
-                onLayout={setBarWidth}
-                allLocked={!isUnlocked}
-              />
-              <Suspense fallback={null}>
-                <EchoContentTabs
-                  key={id}
-                  isLocked={!isUnlocked}
-                  media={capsule.media}
-                  activities={activities}
-                  scrollViewRef={scrollViewRef}
-                  currentPage={currentPage}
-                  onPageChange={handlePageChange}
-                  onScroll={(scrollOffset) => {
-                    scrollX.value = scrollOffset;
-                    updateIndicatorPosition(scrollOffset, SCREEN_WIDTH);
-                  }}
-                  isTabTapping={isTabTapping}
-                  scrollEnabled={isUnlocked}
-                  onMediaPress={handleMediaPress}
-                  onHistoryTabViewed={loadActivities}
-                />
-              </Suspense>
-            </View>
-          )}
+          <View style={styles.bottomCard}>
+            <EchoTabBar
+              selectedTab={selectedTab}
+              onTabPress={handleTabPress}
+              barWidth={barWidth}
+              segmentWidth={segmentWidth}
+              onLayout={setBarWidth}
+              allLocked={!isUnlocked}
+            />
+            <EchoContentTabs
+              key={id}
+              isLocked={!isUnlocked}
+              media={capsule.media}
+              activities={activities}
+              scrollViewRef={scrollViewRef}
+              currentPage={currentPage}
+              onPageChange={handlePageChange}
+              onScroll={(scrollOffset) => {
+                scrollX.value = scrollOffset;
+                updateIndicatorPosition(scrollOffset, SCREEN_WIDTH);
+              }}
+              isTabTapping={isTabTapping}
+              scrollEnabled={isUnlocked}
+              onMediaPress={handleMediaPress}
+              onHistoryTabViewed={loadActivities}
+            />
+          </View>
         </View>
       </ScrollView>
 
-      {/* Only show bottom gradient for ongoing echoes when hydrated */}
-      {isOngoing && isHydrated && <BottomGradient />}
+      {/* Bottom gradient for ongoing echoes */}
+      {isOngoing && <BottomGradient />}
 
-      {/* Recording and media picking moved behind lazy boundary */}
-      {isOngoing && isHydrated && (
-        <Suspense fallback={null}>
-          <RecordingArea
-            stagedMedia={stagedMedia}
-            onStageMedia={handleRecordingSaved}
-            onRemoveItem={(id: string) => setStagedMedia(prev => prev.filter(m => m.id !== id))}
-            onCommitMedia={() => {
-              addMediaBatch(capsule.id, stagedMedia);
-              setStagedMedia([]);
-            }}
-            transitioningFromRecording={transitioningFromRecording}
-          />
-        </Suspense>
+      {/* Recording area for ongoing echoes */}
+      {isOngoing && (
+        <RecordingArea
+          stagedMedia={stagedMedia}
+          onStageMedia={handleRecordingSaved}
+          onRemoveItem={(id: string) => setStagedMedia(prev => prev.filter(m => m.id !== id))}
+          onCommitMedia={() => {
+            addMediaBatch(capsule.id, stagedMedia);
+            setStagedMedia([]);
+          }}
+          transitioningFromRecording={transitioningFromRecording}
+        />
       )}
 
-      <Suspense fallback={null}>
-        <MediaGalleryViewer
-          key={`gallery-${id}`}
-          visible={uiState.galleryVisible}
-          media={capsule.media || []}
-          initialIndex={uiState.selectedMediaIndex}
-          onClose={() => setUiState(prev => ({ ...prev, galleryVisible: false }))}
-        />
-      </Suspense>
+      <MediaGalleryViewer
+        key={`gallery-${id}`}
+        visible={uiState.galleryVisible}
+        media={capsule.media || []}
+        initialIndex={uiState.selectedMediaIndex}
+        onClose={() => setUiState(prev => ({ ...prev, galleryVisible: false }))}
+      />
     </Animated.View>
   );
 }
@@ -602,7 +557,7 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 19,
   },
   iconButton: {
     padding: 4,

@@ -7,8 +7,8 @@ import TopGradient from "@/components/TopGradient";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { colors, sizes, spacing } from "@/theme/theme";
 import { type EchoFilterType } from "@/utils/echoes";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter, type Href } from "expo-router";
 import { useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -93,7 +93,7 @@ export default function RightDrawerContent({ insetTop }: RightDrawerContentProps
                 accessibilityRole="button" 
                 hitSlop={12} 
                 style={styles.iconButton}
-                onPress={() => router.push("/favorites")}
+                onPress={() => router.push("/favorites" as Href)}
               >
                 <Ionicons name="heart" size={24} color={colors.textPrimary} />
               </Pressable>
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
   },
   iconButton: {
     padding: 4,

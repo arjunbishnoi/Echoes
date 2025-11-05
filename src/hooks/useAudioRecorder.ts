@@ -1,5 +1,4 @@
 import type { EchoMedia } from "@/types/echo";
-import { AudioModule } from "expo-audio";
 import { Audio } from "expo-av";
 import { useCallback, useRef, useState } from "react";
 
@@ -186,16 +185,6 @@ export function useAudioRecorder() {
     if (pausedSoundRef.current) return pausedSoundRef.current;
     const uri = recordingUri;
     if (!uri) return null;
-    // Prefer expo-audio player on SDK 54+
-    try {
-      if (AudioModule && typeof AudioModule.createPlayer === 'function') {
-        const player = await AudioModule.createPlayer({ uri });
-        return player;
-      }
-    } catch (error) {
-      if (__DEV__) console.error("Failed to create audio player:", error);
-    }
-    // Fallback to expo-av Sound if available
     try {
       const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: false });
       pausedSoundRef.current = sound;

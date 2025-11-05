@@ -1,6 +1,6 @@
 import BottomBarBackground from "@/components/BottomBarBackground";
 import { colors, radii, sizes, spacing } from "@/theme/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useMemo } from "react";

@@ -14,7 +14,15 @@
         "NSPhotoLibraryUsageDescription": "Allow Echoes to access your photo library to choose images and videos.",
         "NSCameraUsageDescription": "Allow Echoes to use your camera to capture photos and videos.",
         "NSMicrophoneUsageDescription": "Allow Echoes to record audio for your echoes.",
-        "UIFileSharingEnabled": true
+        "UIFileSharingEnabled": true,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSExceptionDomains": {
+            "localhost": {
+              "NSExceptionAllowsInsecureHTTPLoads": true
+            }
+          }
+        }
       }
     },
     "android": {
@@ -26,18 +34,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "navigationBarColor": "#000000",
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "CAMERA",
-        "RECORD_AUDIO",
-        "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
-      ],
-      "package": "com.anonymous.echoes"
+      ]
     },
     "web": {
       "output": "static",
@@ -62,6 +64,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a57e476a-95af-44f7-aa17-18f2027dbae0"
+      }
+    },
+    "owner": "arjunbishnoi"
   }
 }

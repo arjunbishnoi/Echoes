@@ -3,7 +3,7 @@ import LibraryItem from "@/components/LibraryItem";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { useFavoriteEchoes } from "@/hooks/useFavoriteEchoes";
 import { usePinnedEchoes } from "@/hooks/usePinnedEchoes";
-import { computeEchoProgressPercent, filterEchoesByStatus, searchEchoes, type EchoFilterType } from "@/utils/echoes";
+import { filterEchoesByStatus, searchEchoes, type EchoFilterType } from "@/utils/echoes";
 import React, { useMemo } from "react";
 import { ActionSheetIOS, Alert, Dimensions, Platform, View } from "react-native";
 import { AllEmptyState, LockedEmptyState, OngoingEmptyState, SearchEmptyState, UnlockedEmptyState } from "./LibraryEmptyStates";
@@ -153,7 +153,6 @@ export default function LibraryList({ filter, query, onItemPress }: LibraryListP
       {list.map((c, idx) => {
         const locked = opts?.locked ?? c.status === "locked";
         const completed = opts?.completed ?? c.status === "unlocked";
-        const progressVal = completed ? 1 : computeEchoProgressPercent(c);
 
         return (
           <React.Fragment key={`${filter}-${c.id}`}>
@@ -161,7 +160,6 @@ export default function LibraryList({ filter, query, onItemPress }: LibraryListP
             <LibraryItem
               title={c.title}
               thumbnailUri={c.imageUrl}
-              progress={progressVal}
               locked={locked}
               completed={completed}
               textColor={completed ? "#EAEAEA" : undefined}

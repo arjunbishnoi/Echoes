@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Platform, Pressable, StyleSheet, type ViewStyle } from "react-native";
 import { FLOATING_BUTTON_SIZE } from "@/constants/dimensions";
 import { colors } from "@/theme/theme";

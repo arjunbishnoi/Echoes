@@ -146,3 +146,10 @@ For issues and questions:
 - Check Firebase documentation
 - Review the TypeScript types in `/types`
 - See inline code comments
+
+## Maintenance
+
+- Cleanup: Removed unused dependencies `lodash`, `react-native-calendars`, `react-native-worklets`.
+- Cleanup: Deleted unused assets `assets/images/react-logo.png`, `assets/images/react-logo@2x.png`, `assets/images/react-logo@3x.png`, `assets/images/partial-react-logo.png`.
+- Cleanup: Removed non-official plan `fix-expo-package-versions-and-font-error.plan.md`.
+- TypeScript: Enabled `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`.

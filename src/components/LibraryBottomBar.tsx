@@ -2,7 +2,7 @@ import BottomBarBackground from "@/components/BottomBarBackground";
 import { indicatorPulse, indicatorSpring } from "@/config/animation";
 import { colors, radii, sizes } from "@/theme/theme";
 import type { FilterKey } from "@/types/library";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
@@ -72,7 +72,6 @@ function LibraryBottomBar({ active, onChange, anchor = "bottom", offset }: Props
           <MemoIconButton
             name="time"
             active={propActiveIndex === 0}
-            position="first"
             onPress={() => {
               animateToIndex(0);
               requestAnimationFrame(() => requestAnimationFrame(() => onChange("recent")));
@@ -82,7 +81,6 @@ function LibraryBottomBar({ active, onChange, anchor = "bottom", offset }: Props
           <MemoIconButton
             name="lock-closed"
             active={propActiveIndex === 1}
-            position="middle"
             onPress={() => {
               animateToIndex(1);
               requestAnimationFrame(() => requestAnimationFrame(() => onChange("locked")));
@@ -92,7 +90,6 @@ function LibraryBottomBar({ active, onChange, anchor = "bottom", offset }: Props
           <MemoIconButton
             name="checkmark-sharp"
             active={propActiveIndex === 2}
-            position="middle"
             onPress={() => {
               animateToIndex(2);
               requestAnimationFrame(() => requestAnimationFrame(() => onChange("completed")));
@@ -102,7 +99,6 @@ function LibraryBottomBar({ active, onChange, anchor = "bottom", offset }: Props
           <MemoIconButton
             name="ellipse"
             active={propActiveIndex === 3}
-            position="last"
             onPress={() => {
               animateToIndex(3);
               requestAnimationFrame(() => requestAnimationFrame(() => onChange("all")));
@@ -117,7 +113,7 @@ function LibraryBottomBar({ active, onChange, anchor = "bottom", offset }: Props
 
 export default memo(LibraryBottomBar);
 
-function IconButton({ name, active, position, onPress, segmentWidth }: { name: keyof typeof Ionicons.glyphMap; active: boolean; position: "first" | "middle" | "last"; onPress: () => void; segmentWidth: number }) {
+function IconButton({ name, active, onPress, segmentWidth }: { name: keyof typeof Ionicons.glyphMap; active: boolean; onPress: () => void; segmentWidth: number }) {
   const slotStyle = [styles.slot, segmentWidth > 0 ? { width: segmentWidth } : null];
   return (
     <View style={slotStyle}>

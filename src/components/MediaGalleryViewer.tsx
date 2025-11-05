@@ -1,6 +1,6 @@
 import { colors, spacing } from "@/theme/theme";
 import type { EchoMedia } from "@/types/echo";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image as ExpoImage } from "expo-image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Dimensions, FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";

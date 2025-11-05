@@ -1,6 +1,6 @@
 import { colors } from "@/theme/theme";
 import { getExpoSwiftUI } from "@/utils/expoUi";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import React from "react";
 import { Platform, Switch } from "react-native";
 import { FormRow as NativeFormRow } from "../IOSForm";

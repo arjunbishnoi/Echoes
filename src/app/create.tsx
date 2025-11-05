@@ -2,23 +2,24 @@ import { KEYBOARD_ANIMATION } from "@/constants/animations";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { colors, radii, sizes, spacing } from "@/theme/theme";
 import { useEchoDraft } from "@/utils/echoDraft";
-import { Ionicons } from "@expo/vector-icons";
+import { COVER_IMAGE_ASPECT_RATIO, ensureCoverImageAspectRatio } from "@/utils/image";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Animated,
-  Easing,
-  ImageBackground,
-  Keyboard,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Animated,
+    Easing,
+    ImageBackground,
+    Keyboard,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -50,12 +51,19 @@ export default function CreateEchoScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [5, 2],
+      aspect: COVER_IMAGE_ASPECT_RATIO,
       quality: 0.9,
       exif: false,
     });
     if (!result.canceled) {
-      setCoverImageUri(result.assets[0]?.uri);
+      const asset = result.assets[0];
+      if (asset?.uri) {
+        const normalizedUri = await ensureCoverImageAspectRatio(asset.uri, {
+          width: asset.width,
+          height: asset.height,
+        });
+        setCoverImageUri(normalizedUri);
+      }
     }
   }, []);
 

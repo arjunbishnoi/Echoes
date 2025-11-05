@@ -2,8 +2,8 @@ import BottomBarBackground from "@/components/BottomBarBackground";
 import { indicatorPulse, indicatorSpring } from "@/config/animation";
 import { colors, radii, sizes } from "@/theme/theme";
 import type { NotifKey } from "@/types/notifications";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useRouter, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming } from "react-native-reanimated";
@@ -54,7 +54,7 @@ export default function NotificationsBottomBar({ active, onChange, visible = tru
     <View style={styles.container} pointerEvents="box-none">
       <View style={styles.row} pointerEvents="box-none">
         <View style={styles.avatarSlot}>
-          <Pressable onPress={() => router.push("/profile-modal")} accessibilityRole="button" style={styles.avatarPressable} hitSlop={12}>
+          <Pressable onPress={() => router.push("/profile-modal" as Href)} accessibilityRole="button" style={styles.avatarPressable} hitSlop={12}>
             <Image source={{ uri: "https://i.pravatar.cc/100?img=12" }} style={styles.avatarImage} />
           </Pressable>
         </View>

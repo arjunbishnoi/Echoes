@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import { ColorValue, StyleSheet } from "react-native";
 
 type Props = {
-  imageUrl?: string;
   height?: number;
   echoId?: string;
 };
@@ -20,7 +19,7 @@ const GRADIENT_PRESETS = [
   ['rgba(99, 102, 241, 0.9)', 'rgba(55, 48, 163, 0.6)', 'rgba(7, 6, 18, 0.7)', 'rgba(0, 0, 0, 0.92)', 'rgba(0, 0, 0, 0.97)', 'rgba(0, 0, 0, 0.993)', 'rgba(0, 0, 0, 1)'],
 ] as const;
 
-function ImageGradientOverlay({ imageUrl, height = 500, echoId }: Props) {
+function ImageGradientOverlay({ height = 500, echoId }: Props) {
   const gradientColors = useMemo(() => {
     if (!echoId) return [...GRADIENT_PRESETS[0]] as [ColorValue, ColorValue, ...ColorValue[]];
     

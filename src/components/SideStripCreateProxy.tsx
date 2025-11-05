@@ -4,10 +4,9 @@ import { Pressable, StyleSheet, View } from "react-native";
 type Props = {
   side: "left" | "right";
   onPressCreate: () => void;
-  width?: number;
 };
 
-export default function SideStripCreateProxy({ side, onPressCreate, width = 100 }: Props) {
+export default function SideStripCreateProxy({ side, onPressCreate }: Props) {
   const buttonSize = sizes.floatingBar.height;
   const bottomOffset = sizes.floatingBar.bottomOffset;
   const buttonCenterY = bottomOffset + (buttonSize / 2);

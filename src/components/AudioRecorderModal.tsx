@@ -1,12 +1,6 @@
 import { colors, radii, spacing } from "@/theme/theme";
-import { Ionicons } from "@expo/vector-icons";
-import type { AudioRecorder } from "expo-audio";
-import {
-  AudioModule,
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync
-} from "expo-audio";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { Audio } from "expo-av";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -19,15 +13,15 @@ type Props = {
 export default function AudioRecorderModal({ visible, onClose, onSaved }: Props) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const recordingRef = useRef<AudioRecorder | null>(null);
+  const recordingRef = useRef<Audio.Recording | null>(null);
   const [durationMs, setDurationMs] = useState(0);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const req = await requestRecordingPermissionsAsync();
+      const req = await Audio.requestPermissionsAsync();
       if (!mounted) return;
-      setHasPermission(req.granted);
+      setHasPermission(req.status === "granted");
     })();
     return () => {
       mounted = false;
@@ -41,7 +35,7 @@ export default function AudioRecorderModal({ visible, onClose, onSaved }: Props)
         try {
           const rec = recordingRef.current;
           if (!rec) return;
-          const status = rec.getStatus();
+          const status = await rec.getStatusAsync();
           if (status.isRecording && typeof status.durationMillis === "number") {
             setDurationMs(status.durationMillis);
           }
@@ -58,9 +52,17 @@ export default function AudioRecorderModal({ visible, onClose, onSaved }: Props)
   const startRecording = useCallback(async () => {
     if (hasPermission !== true) return;
     try {
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      const recording = new AudioModule.AudioRecorder(RecordingPresets.HIGH_QUALITY);
-      recording.record();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const recording = new Audio.Recording();
+      const options = {
+        ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        ios: {
+          ...Audio.RecordingOptionsPresets.HIGH_QUALITY.ios,
+          isMeteringEnabled: true,
+        },
+      } as const;
+      await recording.prepareToRecordAsync(options);
+      await recording.startAsync();
       recordingRef.current = recording;
       setIsRecording(true);
     } catch {}
@@ -70,8 +72,8 @@ export default function AudioRecorderModal({ visible, onClose, onSaved }: Props)
     const recording = recordingRef.current;
     if (!recording) return;
     try {
-      await recording.stop();
-      const uri = recording.uri;
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
       if (uri) {
         onSaved({ uri, name: `echo-audio-${Date.now()}.m4a`, mimeType: "audio/m4a", duration: durationMs });
       }

@@ -23,7 +23,7 @@ import type { Echo } from "@/types/echo";
 import { computeEchoProgressPercent } from "@/utils/echoes";
 import { sortEchoesForHome } from "@/utils/echoSorting";
 import { useHomeEchoContext } from "@/utils/homeEchoContext";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { Alert, FlatList, RefreshControl, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Drawer, useDrawerProgress } from "react-native-drawer-layout";
@@ -123,8 +123,7 @@ export function Home() {
         status={item.status === "unlocked" ? "unlocked" : item.status === "locked" ? "locked" : "ongoing"}
         style={styles.cardHeight}
         onPress={leftOpen || rightOpen || drawerInteracting ? undefined : () => {
-          // mark nav start for ad-hoc measurement in dev
-          if (__DEV__) console.log("EchoNavStart:", Date.now());
+          // dev log removed to reduce terminal noise
           router.push({ pathname: "/(main)/echo/[id]", params: { id: item.id } });
         }}
         onLongPress={leftOpen || rightOpen || drawerInteracting ? undefined : () => handleLongPress(item)}
@@ -215,7 +214,7 @@ export function Home() {
                 <PlusToSideStrip />
                 <FloatingBottomBar
                   onPressProfile={handleLeftDrawerOpen}
-                  onPressCreate={() => router.push("/create")}
+                  onPressCreate={() => router.push("/create" as Href)}
                   onPressMenu={handleRightDrawerOpen}
                 />
               </SafeAreaView>
@@ -223,8 +222,8 @@ export function Home() {
           </View>
         </RightDrawerProgressProvider>
       </Drawer>
-      {leftOpen && <SideStripCreateProxy side="left" onPressCreate={() => router.push("/create")} />}
-      {rightOpen && <SideStripCreateProxy side="right" onPressCreate={() => router.push("/create")} />}
+      {leftOpen && <SideStripCreateProxy side="left" onPressCreate={() => router.push("/create" as Href)} />}
+      {rightOpen && <SideStripCreateProxy side="right" onPressCreate={() => router.push("/create" as Href)} />}
     </>
   );
 }

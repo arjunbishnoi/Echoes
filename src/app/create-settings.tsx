@@ -4,7 +4,7 @@ import { FormSection } from "@/components/IOSForm";
 import { dummyFriends } from "@/data/dummyFriends";
 import { useEchoDraft } from "@/utils/echoDraft";
 import { colors, spacing } from "@/theme/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useCallback, useMemo, useState } from "react";
 import { ActionSheetIOS, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, TouchableWithoutFeedback, View } from "react-native";

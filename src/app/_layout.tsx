@@ -6,15 +6,100 @@ import { AuthProvider } from "@/utils/authContext";
 import { EchoDraftProvider } from "@/utils/echoDraft";
 import { EchoStorage } from "@/utils/echoStorage";
 import { HomeEchoProvider } from "@/utils/homeEchoContext";
-import { Ionicons } from "@expo/vector-icons";
-import { Stack } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import * as FileSystem from "expo-file-system";
+import * as ExpoFont from "expo-font";
+import { type FontSource } from "expo-font";
+import { Stack, router, type Href } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { ioniconsBase64 } from "../../assets/fonts/ioniconsBase64";
+
+const patchedIonicons = Ionicons as typeof Ionicons & {
+  // relax typing to avoid conflicts with upstream declaration
+  font?: Record<string, any>;
+  loadFont: () => Promise<void>;
+};
+
+const ioniconsFontMap: Record<string, any> = ((patchedIonicons as any).font ?? {});
+(patchedIonicons as any).font = ioniconsFontMap;
+
+let ioniconsFontSetupPromise: Promise<void> | null = null;
+
+async function resolveIoniconsFontSource(): Promise<FontSource> {
+  // Web: data URI is sufficient and avoids any network fetch.
+  if (Platform.OS === "web") {
+    return { uri: `data:font/ttf;base64,${ioniconsBase64}` };
+  }
+
+  // Native: write the font to a local file (never return data: for native)
+  const cacheDir = (FileSystem as any).cacheDirectory as string | undefined;
+  const docDir = (FileSystem as any).documentDirectory as string | undefined;
+  const candidateDirs = [
+    cacheDir,
+    docDir,
+    cacheDir ? `${cacheDir}tmp/` : undefined,
+  ].filter(Boolean) as string[];
+
+  for (const base of candidateDirs) {
+    try {
+      const fontsDir = base.endsWith("/") ? `${base}fonts/` : `${base}/fonts/`;
+      try { await FileSystem.makeDirectoryAsync(fontsDir, { intermediates: true }); } catch {}
+      const targetPath = `${fontsDir}ionicons.ttf`;
+      const info = await FileSystem.getInfoAsync(targetPath);
+      if (!info.exists) {
+        const enc = (FileSystem as any).EncodingType?.Base64 ?? ("base64" as any);
+        await FileSystem.writeAsStringAsync(targetPath, ioniconsBase64, { encoding: enc });
+      }
+      return { uri: targetPath };
+    } catch {
+      // try next directory
+    }
+  }
+
+  // If everything fails, return the existing mapping to avoid passing data: on native.
+  // Ionicons will keep its default asset in that case.
+  return (patchedIonicons as any).font?.ionicons ? (patchedIonicons as any).font.ionicons : { uri: "" };
+}
+
+async function prepareIoniconsFont(): Promise<void> {
+  if (!ioniconsFontSetupPromise) {
+    ioniconsFontSetupPromise = (async () => {
+      const fontSource = await resolveIoniconsFontSource();
+      ioniconsFontMap.ionicons = fontSource;
+      (patchedIonicons as any).font = ioniconsFontMap;
+      await ExpoFont.loadAsync({ ionicons: fontSource });
+    })();
+  }
+
+  return ioniconsFontSetupPromise;
+}
+
+patchedIonicons.loadFont = () => prepareIoniconsFont();
 
 export default function RootLayout() {
+  const [fontsLoaded, setFontsLoaded] = useState(false);
+  const [fontError, setFontError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    void prepareIoniconsFont()
+      .then(() => {
+        setFontsLoaded(true);
+      })
+      .catch((error: unknown) => {
+        setFontError(error instanceof Error ? error : new Error(String(error)));
+      });
+  }, []);
+
+  useEffect(() => {
+    if (fontError && __DEV__) {
+      console.error("Failed to load Ionicons font:", fontError);
+    }
+  }, [fontError]);
+
   useEffect(() => {
     if (Platform.OS === "android") {
       SystemUI.setBackgroundColorAsync("#000000");
@@ -40,6 +125,10 @@ export default function RootLayout() {
     // Prefetch the most commonly accessed route
     void import("@/app/(main)/echo/[id]");
   }, []);
+
+  if (!fontsLoaded && !fontError) {
+    return null;
+  }
 
   return (
     <ErrorBoundary>
@@ -86,31 +175,31 @@ export default function RootLayout() {
                     headerShadowVisible: false,
                   }} 
                 />
-                <Stack.Screen
+                <Stack.Screen 
                   name="friends"
-                  options={({ navigation }) => ({
+                  options={{
                     headerShown: true,
                     title: "Friends",
                     headerTintColor: colors.textPrimary,
                     headerStyle: { backgroundColor: colors.background },
                     headerShadowVisible: false,
-                    headerLeft: () => <BackButton onPress={() => navigation.goBack()} size={26} style={styles.backButtonAlt} />,
-                  })}
+                    headerLeft: () => <BackButton onPress={() => router.back()} size={26} style={styles.backButtonAlt} />,
+                  }}
                 />
                 <Stack.Screen
                   name="favorites"
-                  options={({ navigation }) => ({
+                  options={{
                     headerShown: true,
                     title: "Favorites",
                     headerTintColor: colors.textPrimary,
                     headerStyle: { backgroundColor: colors.background },
                     headerShadowVisible: false,
-                    headerLeft: () => <BackButton onPress={() => navigation.goBack()} size={26} style={styles.backButtonAlt} />,
-                  })}
+                    headerLeft: () => <BackButton onPress={() => router.back()} size={26} style={styles.backButtonAlt} />,
+                  }}
                 />
                 <Stack.Screen
                   name="friend/[id]"
-                  options={({ navigation }) => ({
+                  options={{
                     headerShown: true,
                     title: "",
                     presentation: "card",
@@ -125,8 +214,8 @@ export default function RootLayout() {
                     fullScreenGestureEnabled: false,
                     gestureDirection: "horizontal",
                     headerBackVisible: false,
-                    headerLeft: () => <BackButton onPress={() => navigation.goBack()} />,
-                  })}
+                    headerLeft: () => <BackButton onPress={() => router.back()} />,
+                  }}
                 />
                 <Stack.Screen 
                   name="notifications" 
@@ -140,7 +229,7 @@ export default function RootLayout() {
                 />
                 <Stack.Screen
                   name="create"
-                  options={({ navigation }) => ({
+                  options={{
                     presentation: "modal",
                     animation: "slide_from_bottom",
                     headerShown: true,
@@ -154,7 +243,7 @@ export default function RootLayout() {
                     gestureEnabled: true,
                     headerRight: () => (
                       <Pressable
-                        onPress={() => navigation.goBack()}
+                        onPress={() => router.back()}
                         accessibilityRole="button"
                         accessibilityLabel="Close"
                         hitSlop={12}
@@ -165,7 +254,7 @@ export default function RootLayout() {
                     ),
                     headerLeft: () => (
                       <Pressable
-                        onPress={() => navigation.push("create-settings")}
+                        onPress={() => router.push("/create-settings" as Href)}
                         accessibilityRole="button"
                         accessibilityLabel="Settings"
                         hitSlop={12}
@@ -174,11 +263,11 @@ export default function RootLayout() {
                         <Ionicons name="settings-outline" size={22} color={colors.white} />
                       </Pressable>
                     ),
-                  })}
+                  }}
                 />
                 <Stack.Screen
                   name="create-settings"
-                  options={({ navigation }) => ({
+                  options={{
                     presentation: "modal",
                     animation: "slide_from_bottom",
                     headerShown: true,
@@ -192,7 +281,7 @@ export default function RootLayout() {
                     gestureEnabled: true,
                     headerLeft: () => (
                       <Pressable
-                        onPress={() => navigation.goBack()}
+                        onPress={() => router.back()}
                         accessibilityRole="button"
                         accessibilityLabel="Cancel"
                         hitSlop={12}
@@ -203,7 +292,7 @@ export default function RootLayout() {
                     ),
                     headerRight: () => (
                       <Pressable
-                        onPress={() => navigation.goBack()}
+                        onPress={() => router.back()}
                         accessibilityRole="button"
                         accessibilityLabel="Done"
                         hitSlop={12}
@@ -212,34 +301,17 @@ export default function RootLayout() {
                         <Text style={styles.doneText}>Done</Text>
                       </Pressable>
                     ),
-                  })}
+                  }}
                 />
                 <Stack.Screen
                   name="profile-modal"
-                  options={({ navigation }) => ({
+                  options={{
                     presentation: "modal",
                     animation: "slide_from_bottom",
-                    headerShown: true,
-                    title: "Settings",
-                    headerTransparent: true,
-                    headerBlurEffect: "dark",
-                    headerTitleAlign: "center",
-                    headerShadowVisible: false,
-                    headerTintColor: colors.textPrimary,
+                    headerShown: false,
                     contentStyle: { backgroundColor: colors.modalSurface },
                     gestureEnabled: true,
-                    headerRight: () => (
-                      <Pressable
-                        onPress={() => navigation.goBack()}
-                        accessibilityRole="button"
-                        accessibilityLabel="Close"
-                        hitSlop={12}
-                        style={styles.closeButton}
-                      >
-                        <Ionicons name="close" size={28} color={colors.white} />
-                      </Pressable>
-                    ),
-                  })}
+                  }}
                 />
               </Stack>
             </EchoDraftProvider>

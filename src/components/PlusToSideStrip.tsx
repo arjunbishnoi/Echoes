@@ -1,5 +1,5 @@
 import { colors, sizes } from "@/theme/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { StyleSheet, useWindowDimensions } from "react-native";
 import { useDrawerProgress } from "react-native-drawer-layout";
 import Animated, { interpolate, useAnimatedStyle } from "react-native-reanimated";

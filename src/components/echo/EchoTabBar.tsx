@@ -1,8 +1,7 @@
 import { colors, sizes, spacing } from "@/theme/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import type { SharedValue } from "react-native-reanimated";
 
 export type EchoTab = "allMedia" | "history";
 
@@ -11,8 +10,6 @@ interface EchoTabBarProps {
   onTabPress: (tab: EchoTab) => void;
   barWidth: number;
   segmentWidth: number;
-  translateX: SharedValue<number>;
-  indicatorScaleX: SharedValue<number>;
   onLayout: (width: number) => void;
   allLocked?: boolean;
 }
@@ -22,8 +19,6 @@ function EchoTabBar({
   onTabPress,
   barWidth,
   segmentWidth,
-  translateX,
-  indicatorScaleX,
   onLayout,
   allLocked,
 }: EchoTabBarProps) {

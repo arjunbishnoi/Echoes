@@ -1,20 +1,22 @@
-import { FormSection } from "@/components/IOSForm";
 import { UnifiedFormSection } from "@/components/forms/UnifiedForm";
 import { UnifiedFormRow } from "@/components/forms/UnifiedFormRow";
+import { FormSection } from "@/components/IOSForm";
+import IconButton from "@/components/ui/IconButton";
 import { HERO_HEIGHT, HERO_IMAGE_MARGIN_TOP } from "@/constants/dimensions";
 import { dummyFriends } from "@/data/dummyFriends";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { colors, radii, spacing } from "@/theme/theme";
-import { Ionicons } from "@expo/vector-icons";
+import { COVER_IMAGE_ASPECT_RATIO, ensureCoverImageAspectRatio } from "@/utils/image";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { BlurView } from "expo-blur";
 import * as ImagePicker from "expo-image-picker";
-import { useLocalSearchParams, useNavigation } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionSheetIOS, Alert, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from "react-native";
 
 const AVATAR_SIZE = 56;
-const COVER_ASPECT_RATIO: [number, number] = [5, 2];
+const COVER_ASPECT_RATIO = COVER_IMAGE_ASPECT_RATIO;
 
 export default function EditEchoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,6 +37,18 @@ export default function EditEchoScreen() {
   const [showLockPicker, setShowLockPicker] = useState(false);
   const [showUnlockPicker, setShowUnlockPicker] = useState(false);
 
+  const isCollaborativeEcho = echo?.shareMode === "shared";
+
+  // Store original values to detect changes
+  const originalValuesRef = useRef({
+    title: echo?.title || "",
+    imageUrl: echo?.imageUrl || "",
+    isPrivate: !!echo?.isPrivate,
+    collaboratorIds: [...(echo?.collaboratorIds || [])],
+    lockDate: echo?.lockDate ? new Date(echo.lockDate).getTime() : undefined,
+    unlockDate: echo?.unlockDate ? new Date(echo.unlockDate).getTime() : undefined,
+  });
+
   const friends = useMemo(
     () =>
       dummyFriends.map((f) => ({
@@ -44,6 +58,35 @@ export default function EditEchoScreen() {
       })),
     []
   );
+
+  // Check if any changes have been made
+  const hasChanges = useCallback(() => {
+    const original = originalValuesRef.current;
+    
+    // Compare title
+    if (title !== original.title) return true;
+    
+    // Compare imageUrl
+    if (imageUrl !== original.imageUrl) return true;
+    
+    // Compare isPrivate
+    if (isPrivate !== original.isPrivate) return true;
+    
+    // Compare collaboratorIds (check array equality)
+    if (collaboratorIds.length !== original.collaboratorIds.length) return true;
+    if (collaboratorIds.some(id => !original.collaboratorIds.includes(id))) return true;
+    if (original.collaboratorIds.some(id => !collaboratorIds.includes(id))) return true;
+    
+    // Compare lockDate
+    const lockDateTime = lockDate ? lockDate.getTime() : undefined;
+    if (lockDateTime !== original.lockDate) return true;
+    
+    // Compare unlockDate
+    const unlockDateTime = unlockDate ? unlockDate.getTime() : undefined;
+    if (unlockDateTime !== original.unlockDate) return true;
+    
+    return false;
+  }, [title, imageUrl, isPrivate, collaboratorIds, lockDate, unlockDate]);
 
   const toggleCollaborator = useCallback(
     (friendId: string) => {
@@ -77,7 +120,12 @@ export default function EditEchoScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setImageUrl(result.assets[0].uri);
+        const asset = result.assets[0];
+        const normalizedUri = await ensureCoverImageAspectRatio(asset.uri, {
+          width: asset.width,
+          height: asset.height,
+        });
+        setImageUrl(normalizedUri);
       }
     };
 
@@ -96,7 +144,12 @@ export default function EditEchoScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setImageUrl(result.assets[0].uri);
+        const asset = result.assets[0];
+        const normalizedUri = await ensureCoverImageAspectRatio(asset.uri, {
+          width: asset.width,
+          height: asset.height,
+        });
+        setImageUrl(normalizedUri);
       }
     };
 
@@ -160,21 +213,25 @@ export default function EditEchoScreen() {
     if (!id || !echo) return;
 
     try {
+      const effectiveIsPrivate = isCollaborativeEcho ? false : isPrivate;
+      const effectiveShareMode = isCollaborativeEcho ? "shared" : (isPrivate ? "private" : "shared");
+      const effectiveCollaboratorIds = effectiveIsPrivate ? [] : collaboratorIds;
+
       await updateEcho(String(id), {
         title: title.trim() || echo.title || "Untitled",
         imageUrl: imageUrl.trim() || undefined,
-        isPrivate,
-        collaboratorIds: isPrivate ? [] : collaboratorIds,
-        shareMode: isPrivate ? "private" : "shared",
+        isPrivate: effectiveIsPrivate,
+        collaboratorIds: effectiveCollaboratorIds,
+        shareMode: effectiveShareMode,
         lockDate: lockDate ? lockDate.toISOString() : undefined,
         unlockDate: unlockDate ? unlockDate.toISOString() : undefined,
       });
-      Alert.alert("Saved", "Your changes have been saved.");
+      router.back();
     } catch (error) {
       console.error("Failed to save echo:", error);
       Alert.alert("Error", "Failed to save changes. Please try again.");
     }
-  }, [id, echo, title, imageUrl, isPrivate, lockDate, unlockDate, updateEcho, collaboratorIds]);
+  }, [id, echo, title, imageUrl, isPrivate, lockDate, unlockDate, updateEcho, collaboratorIds, isCollaborativeEcho]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -189,7 +246,7 @@ export default function EditEchoScreen() {
             if (!id) return;
             try {
               await deleteEcho(String(id));
-              navigation.goBack();
+              router.back();
             } catch {
               Alert.alert("Error", "Failed to delete echo. Please try again.");
             }
@@ -198,6 +255,30 @@ export default function EditEchoScreen() {
       ]
     );
   }, [id, title, deleteEcho, navigation]);
+
+  const handleCancel = useCallback(() => {
+    if (!hasChanges()) {
+      router.back();
+      return;
+    }
+
+    // Show confirmation dialog if there are unsaved changes
+    Alert.alert(
+      "Discard Changes?",
+      "You have unsaved changes. Are you sure you want to discard them?",
+      [
+        {
+          text: "Keep Editing",
+          style: "cancel",
+        },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => router.back(),
+        },
+      ]
+    );
+  }, [hasChanges]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -211,7 +292,7 @@ export default function EditEchoScreen() {
       headerBackVisible: false,
       headerLeft: () => (
         <Pressable
-          onPress={() => navigation.goBack()}
+          onPress={handleCancel}
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="Cancel"
@@ -221,18 +302,15 @@ export default function EditEchoScreen() {
         </Pressable>
       ),
       headerRight: () => (
-        <Pressable
+        <IconButton
+          icon="checkmark"
           onPress={handleSave}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Save changes"
-          style={styles.saveButton}
-        >
-          <Text style={styles.saveText}>Save</Text>
-        </Pressable>
+          color={colors.white}
+          style={{ backgroundColor: colors.blue }}
+        />
       ),
     });
-  }, [navigation, handleSave]);
+  }, [navigation, handleSave, handleCancel]);
 
   if (!echo) {
     return (
@@ -286,17 +364,26 @@ export default function EditEchoScreen() {
         </View>
 
         <View style={styles.formContainer}>
-        <UnifiedFormSection style={styles.sectionSpacing}>
-          <UnifiedFormRow
-            title="Private"
-            switch
-            switchValue={isPrivate}
-            onSwitchChange={setIsPrivate}
-          />
-        </UnifiedFormSection>
+        {isCollaborativeEcho ? (
+          <View style={styles.infoBanner}>
+            <Ionicons name="people" size={16} color={colors.white} />
+            <Text style={styles.infoBannerText}>
+              This echo is collaborative and cannot be made private again.
+            </Text>
+          </View>
+        ) : (
+          <UnifiedFormSection style={styles.sectionSpacing}>
+            <UnifiedFormRow
+              title="Private"
+              switch
+              switchValue={isPrivate}
+              onSwitchChange={setIsPrivate}
+            />
+          </UnifiedFormSection>
+        )}
 
-      {!isPrivate && (
-        <FormSection title="Choose Collaborators">
+      {(isCollaborativeEcho || !isPrivate) && (
+        <FormSection title={isCollaborativeEcho ? "Collaborators" : "Choose Collaborators"}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -310,7 +397,7 @@ export default function EditEchoScreen() {
                   onPress={() => toggleCollaborator(friend.id)}
                   style={[styles.avatarWrap, selected && styles.avatarWrapSelected]}
                   accessibilityRole="button"
-                  accessibilityLabel={`Select ${friend.name}`}
+                  accessibilityLabel={`${selected ? "Remove" : "Add"} ${friend.name}`}
                 >
                   <ImageBackground
                     source={{ uri: friend.avatarUri }}
@@ -506,6 +593,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
+  infoBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(0, 122, 255, 0.15)",
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.xl,
+  },
+  infoBannerText: {
+    color: colors.white,
+    fontSize: 14,
+    flex: 1,
+  },
   formContainer: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
@@ -568,7 +670,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   cancelButton: {
-    paddingHorizontal: 4,
+    paddingHorizontal: 12,
     paddingVertical: 2,
   },
   cancelText: {
@@ -577,13 +679,12 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
   saveButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  saveText: {
-    color: colors.white,
-    fontWeight: "800",
-    fontSize: 17,
+    width: 40,
+    height: 40,
+    backgroundColor: colors.blue,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalOverlay: {
     flex: 1,

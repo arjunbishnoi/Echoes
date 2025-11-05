@@ -1,228 +1,231 @@
+import ListSeparator from "@/components/ListSeparator";
+import TimeCapsuleCard from "@/components/TimeCapsuleCard";
+import { HERO_HEIGHT } from "@/constants/dimensions";
 import { dummyFriends } from "@/data/dummyFriends";
+import { useEchoStorage } from "@/hooks/useEchoStorage";
+import { useFavoriteEchoes } from "@/hooks/useFavoriteEchoes";
+import { useFriendContextMenu } from "@/hooks/useFriendContextMenu";
 import { colors, spacing } from "@/theme/theme";
-import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams } from "expo-router";
-import { useMemo } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { computeEchoProgressPercent } from "@/utils/echoes";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo } from "react";
+import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const MUTUAL_FRIENDS_COUNT = 3;
-const SHARED_ECHOES_COUNT = 6;
-const SHARED_ECHOES_PREVIEW = 3;
-
 export default function FriendDetailScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const navigation = useNavigation();
   const { id, name: nameParam, avatar: avatarParam } = useLocalSearchParams<{
-    id: string;
+    id?: string;
     name?: string;
     avatar?: string;
   }>();
 
-  const insets = useSafeAreaInsets();
+  const displayName = typeof nameParam === "string" && nameParam.length > 0 ? nameParam : "Friend";
+  const photoURL = typeof avatarParam === "string" && avatarParam.length > 0
+    ? avatarParam
+    : `https://picsum.photos/seed/${id ?? "friend"}/300/300`;
 
-  const friend = useMemo(() => {
-    const found = dummyFriends.find((f) => f.id === id);
-    if (found) {
-      return {
-        id: found.id,
-        displayName: found.displayName,
-        username: found.username,
-        photoURL: found.photoURL,
-        bio: found.bio,
-      };
+  const { echoes } = useEchoStorage();
+  const { isFavorite } = useFavoriteEchoes();
+  const { showContextMenu } = useFriendContextMenu();
+
+  const friendId = typeof id === "string" ? id : String(id ?? "");
+  const friendProfile = useMemo(() => dummyFriends.find((f) => f.id === friendId), [friendId]);
+  const friendBio = friendProfile?.bio ?? "";
+  const mutuals = useMemo(() => dummyFriends.filter((f) => f.id !== friendId), [friendId]);
+
+  const friendEchoes = useMemo(() => {
+    return echoes.filter((e) => e.ownerId === friendId || (e.collaboratorIds?.includes(friendId)));
+  }, [echoes, friendId]);
+
+  const getAvatarUrls = useCallback((echo: import("@/types/echo").Echo): string[] => {
+    const avatars: string[] = [];
+    if (echo.ownerPhotoURL) avatars.push(echo.ownerPhotoURL);
+    if (echo.collaboratorIds && echo.collaboratorIds.length > 0) {
+      echo.collaboratorIds.forEach((collaboratorId) => {
+        const friend = dummyFriends.find((f) => f.id === collaboratorId);
+        if (friend?.photoURL) avatars.push(friend.photoURL);
+      });
     }
-    return {
-      id: String(id),
-      displayName: nameParam ?? "Friend",
-      username: "@user",
-      photoURL: typeof avatarParam === "string" ? avatarParam : "https://picsum.photos/seed/default/200/200",
-      bio: undefined,
-    };
-  }, [id, nameParam, avatarParam]);
+    return avatars;
+  }, []);
+
+  const renderItem = useCallback(({ item }: { item: import("@/types/echo").Echo }) => (
+    <TimeCapsuleCard
+      id={item.id}
+      title={item.title}
+      imageUrl={item.imageUrl}
+      progress={computeEchoProgressPercent(item)}
+      participants={getAvatarUrls(item)}
+      isPrivate={item.isPrivate}
+      isPinned={false}
+      isFavorite={isFavorite(item.id)}
+      status={item.status === "unlocked" ? "unlocked" : item.status === "locked" ? "locked" : "ongoing"}
+      style={styles.cardHeight}
+      onPress={() => router.push({ pathname: "/profile-modal/echo/[id]", params: { id: item.id } })}
+    />
+  ), [getAvatarUrls, isFavorite]);
+
+  const keyExtractor = useCallback((item: import("@/types/echo").Echo) => item.id, []);
+
+  const handleEdit = useCallback(() => {
+    router.push({ pathname: "/friend/[id]/edit", params: { id: friendId, name: displayName, avatar: photoURL } });
+  }, [router, friendId, displayName, photoURL]);
+
+  const handleRemove = useCallback(() => {
+    Alert.alert(
+      "Remove Friend",
+      `Are you sure you want to remove ${displayName}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            // Import and use FriendStorage here
+            const { FriendStorage } = await import("@/utils/friendStorage");
+            await FriendStorage.initialize();
+            await FriendStorage.removeFriend(friendId);
+            router.back();
+          },
+        },
+      ]
+    );
+  }, [displayName, friendId, router]);
+
+  const handleContextMenu = useCallback(() => {
+    showContextMenu({
+      onEdit: handleEdit,
+      onRemove: handleRemove,
+    });
+  }, [showContextMenu, handleEdit, handleRemove]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={handleContextMenu}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Friend options"
+          style={styles.headerButton}
+        >
+          <Ionicons name="ellipsis-horizontal" size={24} color={colors.textPrimary} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, handleContextMenu]);
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 80, paddingBottom: insets.bottom + 100 }]}>
-        {/* Profile Header */}
-        <View style={styles.header}>
-          <Image source={{ uri: friend.photoURL }} style={styles.avatar} />
-          <Text style={styles.name}>{friend.displayName}</Text>
-          <Text style={styles.username}>{friend.username}</Text>
-          {friend.bio && <Text style={styles.bio}>{friend.bio}</Text>}
-        </View>
-
-        {/* Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{MUTUAL_FRIENDS_COUNT}</Text>
-            <Text style={styles.statLabel}>Mutual Friends</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{SHARED_ECHOES_COUNT}</Text>
-            <Text style={styles.statLabel}>Shared Echoes</Text>
-          </View>
-        </View>
-
-        {/* Action Buttons */}
-        <View style={styles.actions}>
-          <Pressable
-            style={styles.primaryButton}
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
-          >
-            <Ionicons name="chatbubble" size={18} color={colors.black} style={styles.buttonIcon} />
-            <Text style={styles.primaryButtonText}>Message</Text>
-          </Pressable>
-          <Pressable
-            style={styles.secondaryButton}
-            accessibilityRole="button"
-            accessibilityLabel="More options"
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color={colors.white} />
-          </Pressable>
-        </View>
-
-        {/* Shared Echoes Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Shared Echoes</Text>
-          <View style={styles.echoesGrid}>
-            {Array.from({ length: SHARED_ECHOES_PREVIEW }).map((_, idx) => (
-              <View key={idx} style={styles.echoCard}>
-                <Image
-                  source={{ uri: `https://picsum.photos/seed/echo-${friend.id}-${idx}/200/200` }}
-                  style={styles.echoImage}
-                />
-              </View>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.xxl }]}> 
+        <Image source={{ uri: photoURL }} style={styles.avatar} />
+        <Text style={styles.name}>{displayName}</Text>
+        {!!friendBio && <Text style={styles.bio}>{friendBio}</Text>}
+      </View>
+      <View style={styles.mutualsSection}>
+        <View style={styles.mutualsRow}>
+          <Text style={styles.mutualsInlineTitle}>{`Mutuals (${mutuals.length})`}</Text>
+          <View style={styles.avatarsStack}>
+            {mutuals.map((f, idx, arr) => (
+              <Image
+                key={`mutual-${f.id}`}
+                source={{ uri: f.photoURL || `https://picsum.photos/seed/${f.id}/200/200` }}
+                style={[
+                  styles.avatarStacked,
+                  idx > 0 ? { marginLeft: -AVATAR_MUTUAL_SIZE * 0.35 } : null,
+                  { zIndex: arr.length - idx },
+                ]}
+              />
             ))}
           </View>
+          <Ionicons name="chevron-forward" size={24} color={colors.textSecondary} />
         </View>
-      </ScrollView>
+      </View>
+      <FlatList
+        data={friendEchoes}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={ListSeparator}
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   );
 }
+
+const AVATAR_SIZE = 160;
+const AVATAR_MUTUAL_SIZE = 32; // slightly larger for mutuals per request
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollContent: {
-    paddingTop: 0,
-  },
   header: {
     alignItems: "center",
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.lg,
   },
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginBottom: spacing.md,
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
     backgroundColor: colors.surface,
   },
   name: {
-    fontSize: 28,
-    fontWeight: "700",
+    marginTop: spacing.lg,
     color: colors.textPrimary,
-    marginBottom: spacing.xs,
-  },
-  username: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    marginBottom: spacing.md,
-  },
-  bio: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 20,
-    paddingHorizontal: spacing.xl,
-  },
-  statsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: spacing.lg,
-    marginHorizontal: spacing.lg,
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    marginBottom: spacing.lg,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statValue: {
     fontSize: 24,
     fontWeight: "700",
-    color: colors.textPrimary,
-    marginBottom: 4,
   },
-  statLabel: {
-    fontSize: 13,
+  bio: {
+    marginTop: spacing.xs,
     color: colors.textSecondary,
+    fontSize: 14,
+    textAlign: "center",
+    paddingHorizontal: spacing.xl,
   },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: colors.surfaceBorder,
-  },
-  actions: {
-    flexDirection: "row",
+  mutualsSection: {
     paddingHorizontal: spacing.lg,
-    gap: spacing.md,
-    marginBottom: spacing.xl,
+    paddingTop: spacing.md,
   },
-  primaryButton: {
-    flex: 1,
+  mutualsRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.white,
-    paddingVertical: spacing.md + 2,
-    borderRadius: 24,
+    gap: spacing.md,
+    paddingVertical: spacing.md,
   },
-  primaryButtonText: {
+  avatarsStack: {
+    flexDirection: "row",
+    alignItems: "center",
+    height: AVATAR_MUTUAL_SIZE,
+  },
+  avatarStacked: {
+    width: AVATAR_MUTUAL_SIZE,
+    height: AVATAR_MUTUAL_SIZE,
+    borderRadius: AVATAR_MUTUAL_SIZE / 2,
+  },
+  mutualsInlineTitle: {
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: "700",
-    color: colors.black,
   },
-  buttonIcon: {
-    marginRight: 8,
+  listContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
   },
-  secondaryButton: {
-    width: 48,
-    height: 48,
+  cardHeight: {
+    height: HERO_HEIGHT,
+  },
+  headerButton: {
+    padding: 4,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-  },
-  section: {
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.xl,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
-  },
-  echoesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  echoCard: {
-    width: "31%",
-    aspectRatio: 1,
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: colors.surface,
-  },
-  echoImage: {
-    width: "100%",
-    height: "100%",
   },
 });

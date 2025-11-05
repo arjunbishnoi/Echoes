@@ -1,4 +1,5 @@
 {
+  "extends": "./node_modules/expo/tsconfig.base.json",
   "compilerOptions": {
     "target": "ES2020",
     "module": "esnext",
@@ -9,6 +10,9 @@
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
     "noEmit": true,
     "baseUrl": ".",
     "types": [
@@ -24,6 +28,5 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ],
-  "extends": "expo/tsconfig.base"
+  ]
 }

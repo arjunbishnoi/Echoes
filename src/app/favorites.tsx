@@ -4,7 +4,6 @@ import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { useFavoriteEchoes } from "@/hooks/useFavoriteEchoes";
 import { colors, spacing } from "@/theme/theme";
-import { computeEchoProgressPercent } from "@/utils/echoes";
 import { useRouter } from "expo-router";
 import { Fragment, useCallback, useMemo } from "react";
 import { Dimensions, ScrollView, StyleSheet, View } from "react-native";
@@ -61,7 +60,6 @@ export default function FavoritesScreen() {
               <LibraryItem
                 title={echo.title}
                 thumbnailUri={echo.imageUrl}
-                progress={computeEchoProgressPercent(echo)}
                 locked={echo.status === "locked"}
                 completed={echo.status === "unlocked"}
                 textColor={echo.status === "unlocked" ? "#EAEAEA" : undefined}

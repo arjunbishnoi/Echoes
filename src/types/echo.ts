@@ -54,3 +54,11 @@ export interface EchoActivity {
   targetUserName?: string;
   mediaId?: string;
 }
+
+export interface EchoFilter {
+  status?: EchoStatus;
+  ownerId?: string;
+  collaboratorId?: string;
+  isPrivate?: boolean;
+  isPinned?: boolean;
+}

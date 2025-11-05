@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo } from "react";
 import { PixelRatio, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";

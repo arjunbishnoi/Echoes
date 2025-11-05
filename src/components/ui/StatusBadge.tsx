@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { BlurView } from "expo-blur";
 import { StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { colors } from "@/theme/theme";

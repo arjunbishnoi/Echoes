@@ -1,6 +1,6 @@
 import StatusBadge from "@/components/ui/StatusBadge";
 import { colors, radii, sizes } from "@/theme/theme";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { SymbolView } from "expo-symbols";
