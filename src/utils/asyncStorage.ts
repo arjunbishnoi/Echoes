@@ -1,34 +1,50 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "./storageKeys";
 
+const STORAGE_PREFIX = "@echoes";
+let currentNamespace = "anon";
+
+const namespacedKey = (key: string) => `${STORAGE_PREFIX}:${currentNamespace}:${key}`;
+
 export const Storage = {
+  setNamespace(namespace?: string) {
+    currentNamespace = namespace ? `user:${namespace}` : "anon";
+  },
+
+  getNamespace(): string {
+    return currentNamespace;
+  },
+
   // Generic get/set
   async get<T>(key: string): Promise<T | null> {
+    const finalKey = namespacedKey(key);
     try {
-      const value = await AsyncStorage.getItem(key);
+      const value = await AsyncStorage.getItem(finalKey);
       return value ? JSON.parse(value) : null;
     } catch (error) {
-      console.error(`Error reading ${key}:`, error);
+      console.error(`Error reading ${finalKey}:`, error);
       return null;
     }
   },
 
   async set<T>(key: string, value: T): Promise<boolean> {
+    const finalKey = namespacedKey(key);
     try {
-      await AsyncStorage.setItem(key, JSON.stringify(value));
+      await AsyncStorage.setItem(finalKey, JSON.stringify(value));
       return true;
     } catch (error) {
-      console.error(`Error saving ${key}:`, error);
+      console.error(`Error saving ${finalKey}:`, error);
       return false;
     }
   },
 
   async remove(key: string): Promise<boolean> {
+    const finalKey = namespacedKey(key);
     try {
-      await AsyncStorage.removeItem(key);
+      await AsyncStorage.removeItem(finalKey);
       return true;
     } catch (error) {
-      console.error(`Error removing ${key}:`, error);
+      console.error(`Error removing ${finalKey}:`, error);
       return false;
     }
   },

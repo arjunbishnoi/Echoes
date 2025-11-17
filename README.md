@@ -28,7 +28,7 @@ A time capsule app built with Expo and Firebase. Create, share, and unlock memor
 npm install
 
 # Copy environment template
-cp .env.example .env
+cp env.example .env
 
 # Configure your Firebase credentials in .env
 
@@ -48,6 +48,16 @@ npm run web        # Web
 3. Create Firestore Database
 4. Enable Firebase Storage
 5. Get your Firebase config and add to `.env` file
+
+## Google OAuth Setup
+
+1. In [Google Cloud Console](https://console.cloud.google.com/apis/credentials), create **OAuth Client IDs**:
+   - Web client – used by Expo Go / dev builds (`EXPO_PUBLIC_GOOGLE_EXPO_CLIENT_ID` or `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`)
+   - iOS client – bundle ID `com.arjunbishnoi.echoes`
+   - Android client – package `com.arjunbishnoi.echoes`
+2. Add the authorized redirect URI `https://auth.expo.dev/@arjunbishnoi/echoes` to the Web client.
+3. Copy the generated client IDs into `.env` (see `env.example`).
+4. Restart Expo (`npx expo start --clear`) so the new environment variables flow into `app.config.ts`.
 
 ## Project Structure
 

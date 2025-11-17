@@ -2,6 +2,7 @@ import BottomBarBackground from "@/components/BottomBarBackground";
 import { indicatorPulse, indicatorSpring } from "@/config/animation";
 import { colors, radii, sizes } from "@/theme/theme";
 import type { NotifKey } from "@/types/notifications";
+import { useAuth } from "@/utils/authContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter, type Href } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -16,6 +17,8 @@ type Props = {
 
 export default function NotificationsBottomBar({ active, onChange, visible = true }: Props) {
   const router = useRouter();
+  const { user, isGuest } = useAuth();
+  const avatarUri = !isGuest ? user?.photoURL : undefined;
   const [barWidth, setBarWidth] = useState(0);
   const measuredWidth = Math.max(0, barWidth);
   const segmentWidth = measuredWidth > 0 ? measuredWidth / 3 : 0;
@@ -54,8 +57,22 @@ export default function NotificationsBottomBar({ active, onChange, visible = tru
     <View style={styles.container} pointerEvents="box-none">
       <View style={styles.row} pointerEvents="box-none">
         <View style={styles.avatarSlot}>
-          <Pressable onPress={() => router.push("/profile-modal" as Href)} accessibilityRole="button" style={styles.avatarPressable} hitSlop={12}>
-            <Image source={{ uri: "https://i.pravatar.cc/100?img=12" }} style={styles.avatarImage} />
+          <Pressable
+            onPress={() => router.push("/profile-modal" as Href)}
+            accessibilityRole="button"
+            style={styles.avatarPressable}
+            hitSlop={12}
+          >
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+            ) : (
+              <View
+                style={[
+                  styles.avatarImage,
+                  isGuest ? styles.avatarGuestFill : styles.avatarFallbackFill,
+                ]}
+              />
+            )}
           </Pressable>
         </View>
         {visible && (
@@ -136,6 +153,13 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: 999,
+    backgroundColor: colors.surface,
+  },
+  avatarGuestFill: {
+    backgroundColor: colors.white,
+  },
+  avatarFallbackFill: {
+    backgroundColor: colors.surface,
   },
   slot: {
     height: "100%",

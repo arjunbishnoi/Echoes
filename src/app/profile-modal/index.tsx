@@ -5,14 +5,21 @@ import { useAuth } from "@/utils/authContext";
 import Constants from "expo-constants";
 import { useRouter, type Href } from "expo-router";
 import { useState } from "react";
-import { Alert, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 export default function ProfileModal() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, isGuest, signOut } = useAuth();
   const [isDarkTheme, setIsDarkTheme] = useState(true);
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
-  const platformName = Platform.OS === "ios" ? "iOS" : "Android";
+  
+  const displayNameUI = isGuest
+    ? "Guest"
+    : user?.displayName || user?.username || user?.email || "Echoes user";
+  const usernameUI = isGuest
+    ? "guest"
+    : user?.username || user?.email?.split("@")[0] || "echoes-user";
+  const avatarUri = !isGuest ? user?.photoURL : undefined;
 
   const handleSignOut = async () => {
     Alert.alert("Sign out", "Are you sure you want to sign out?", [
@@ -27,6 +34,20 @@ export default function ProfileModal() {
       },
     ]);
   };
+  const handleGuestAuth = async () => {
+    try {
+      await signOut();
+    } catch {
+      // no-op
+    } finally {
+      router.replace("/(auth)/sign-in");
+    }
+  };
+
+  const showProfileActions = !isGuest;
+
+  const guestControlTitleStyle = isGuest ? styles.guestFormRowTitle : undefined;
+
   return (
     <ScrollView
       style={styles.container}
@@ -34,33 +55,50 @@ export default function ProfileModal() {
       contentInsetAdjustmentBehavior="automatic"
     >
       <View style={styles.profileHeader}>
-        <Image
-          source={{ uri: user?.photoURL || "https://picsum.photos/seed/user-avatar/120/120" }}
-          style={styles.avatar}
-        />
+        {avatarUri ? (
+          <Image source={{ uri: avatarUri }} style={styles.avatar} />
+        ) : (
+          <View style={[styles.avatar, styles.guestAvatar]} />
+        )}
         <View style={styles.userInfo}>
-          <Text style={styles.name}>{user?.displayName || "Your Name"}</Text>
-          <Text style={styles.username}>@{user?.username || user?.email?.split("@")[0] || "username"}</Text>
+          <Text style={styles.name}>{displayNameUI}</Text>
+          <Text style={styles.username}>{usernameUI}</Text>
         </View>
       </View>
 
-      <UnifiedFormSection style={styles.sectionSpacing}>
-        <UnifiedFormRow
-          title="Edit Profile"
-          leftIcon="person-outline"
-          systemImage="person.circle"
-          showChevron
-          onPress={() => Alert.alert("Edit Profile", "Edit screen coming soon")}
-          accessibilityLabel="Edit Profile"
-        />
-        <UnifiedFormRow
-          title="Friends"
-          leftIcon="people-outline"
-          systemImage="person.2"
-          showChevron
-          onPress={() => router.push("/profile-modal/friends" as Href)}
-          accessibilityLabel="Friends"
-        />
+      {isGuest && (
+        <Pressable
+          onPress={handleGuestAuth}
+          accessibilityRole="button"
+          accessibilityLabel="Sign up or log in"
+          style={styles.authButton}
+        >
+          <Text style={styles.authButtonText}>Sign up / Login</Text>
+        </Pressable>
+      )}
+
+      {showProfileActions && (
+        <UnifiedFormSection style={styles.sectionSpacing}>
+          <UnifiedFormRow
+            title="Edit Profile"
+            leftIcon="person-outline"
+            systemImage="person.circle"
+            showChevron
+            onPress={() => router.push("/profile-modal/edit" as Href)}
+            accessibilityLabel="Edit Profile"
+          />
+          <UnifiedFormRow
+            title="Friends"
+            leftIcon="people-outline"
+            systemImage="person.2"
+            showChevron
+            onPress={() => router.push("/profile-modal/friends" as Href)}
+            accessibilityLabel="Friends"
+          />
+        </UnifiedFormSection>
+      )}
+
+      <UnifiedFormSection style={[styles.sectionSpacing, isGuest && styles.pillFormSection]}>
         <UnifiedFormRow
           title="Echoes Library"
           leftIcon="albums-outline"
@@ -68,6 +106,7 @@ export default function ProfileModal() {
           showChevron
           onPress={() => router.push("/echoes" as Href)}
           accessibilityLabel="Echoes Library"
+          titleStyle={guestControlTitleStyle}
         />
         <UnifiedFormRow
           title={`Theme: ${isDarkTheme ? "Dark" : "Light"}`}
@@ -75,17 +114,22 @@ export default function ProfileModal() {
           switch
           switchValue={isDarkTheme}
           onSwitchChange={setIsDarkTheme}
+          titleStyle={guestControlTitleStyle}
         />
       </UnifiedFormSection>
 
-      <UnifiedFormSection title="About">
+      <UnifiedFormSection
+        title="About"
+        style={[styles.sectionSpacing, isGuest && styles.pillFormSection]}
+      >
         <UnifiedFormRow
-          title="Help Center"
+          title="How it Works"
           leftIcon="help-circle-outline"
           systemImage="questionmark.circle"
           showChevron
-          onPress={() => Alert.alert("Help", "Help center coming soon")}
-          accessibilityLabel="Help Center"
+          onPress={() => Alert.alert("How it Works", "Coming soon")}
+          accessibilityLabel="How it Works"
+          titleStyle={guestControlTitleStyle}
         />
         <UnifiedFormRow
           title="Terms of Use"
@@ -94,6 +138,7 @@ export default function ProfileModal() {
           showChevron
           onPress={() => Alert.alert("Terms", "Terms of use coming soon")}
           accessibilityLabel="Terms of Use"
+          titleStyle={guestControlTitleStyle}
         />
         <UnifiedFormRow
           title="Privacy Policy"
@@ -102,23 +147,27 @@ export default function ProfileModal() {
           showChevron
           onPress={() => Alert.alert("Privacy", "Privacy policy coming soon")}
           accessibilityLabel="Privacy Policy"
+          titleStyle={guestControlTitleStyle}
         />
         <UnifiedFormRow
-          title={`Echoes for ${platformName}`}
+          title="Echoes for iOS"
           leftIcon="phone-portrait-outline"
           systemImage="iphone"
           valueText={appVersion}
+          titleStyle={guestControlTitleStyle}
         />
       </UnifiedFormSection>
 
-      <Pressable
-        onPress={handleSignOut}
-        accessibilityRole="button"
-        accessibilityLabel="Sign out"
-        style={styles.logoutButton}
-      >
-        <Text style={styles.logoutText}>Sign out</Text>
-      </Pressable>
+      {!isGuest && (
+        <Pressable
+          onPress={handleSignOut}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+          style={styles.logoutButton}
+        >
+          <Text style={styles.logoutText}>Sign out</Text>
+        </Pressable>
+      )}
     </ScrollView>
   );
 }
@@ -129,36 +178,69 @@ const styles = StyleSheet.create({
     backgroundColor: colors.modalSurface,
   },
   contentContainer: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.xxl,
   },
   profileHeader: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
-    paddingVertical: spacing.md,
-    gap: spacing.md,
+    justifyContent: "center",
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
   },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginRight: spacing.md,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: colors.surface,
+  },
+  guestAvatar: {
+    backgroundColor: colors.white,
   },
   name: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "600",
+    marginTop: spacing.md,
+    textAlign: "center",
   },
   username: {
-    marginTop: 4,
+    marginTop: 2,
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: spacing.lg,
   },
   userInfo: {
-    flex: 1,
+    marginTop: spacing.sm,
+    alignItems: "center",
+  },
+  authButton: {
+    marginTop: spacing.md,
+    marginBottom: spacing.lg,
+    alignSelf: "stretch",
+    width: "100%",
+    backgroundColor: colors.white,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+  },
+  authButtonText: {
+    color: colors.black,
+    fontSize: 15,
+    fontWeight: "700",
+    textAlign: "center",
   },
   sectionSpacing: {
     marginBottom: spacing.xl,
+  },
+  pillFormSection: {
+    borderRadius: radii.pill,
+  },
+  guestFormRowTitle: {
+    fontSize: 15,
+    fontWeight: "400",
   },
   logoutButton: {
     marginTop: spacing.lg,

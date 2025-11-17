@@ -1,6 +1,6 @@
-import React, { Children, isValidElement, ReactElement } from "react";
-import { Platform, Pressable, StyleProp, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { colors, spacing } from "@/theme/theme";
+import React, { Children, isValidElement, ReactElement } from "react";
+import { Platform, Pressable, StyleProp, StyleSheet, Text, TextStyle, View, ViewStyle } from "react-native";
 
 type FormSectionProps = {
   title?: string;
@@ -33,6 +33,7 @@ export function FormSection({ title, style, children }: FormSectionProps) {
 type FormRowProps = {
   title: string;
   subtitle?: string;
+  titleStyle?: StyleProp<TextStyle>;
   Left?: React.ReactNode;
   Right?: React.ReactNode;
   valueText?: string;
@@ -45,6 +46,7 @@ type FormRowProps = {
 export function FormRow({
   title,
   subtitle,
+  titleStyle,
   Left,
   Right,
   valueText,
@@ -65,7 +67,7 @@ export function FormRow({
         <View style={styles.rowLeftWrap}>
           {Left ? <View style={styles.leftIcon}>{Left}</View> : null}
           <View style={{ flex: 1 }}>
-            <Text style={styles.rowTitle}>{title}</Text>
+            <Text style={[styles.rowTitle, titleStyle]}>{title}</Text>
             {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
           </View>
         </View>

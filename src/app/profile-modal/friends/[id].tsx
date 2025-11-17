@@ -1,1 +1,1 @@
-export { default } from "@/app/friend/[id]";
+export { default } from "../../friend/[id]";

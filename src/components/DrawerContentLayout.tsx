@@ -1,6 +1,6 @@
 import { sizes } from "@/theme/theme";
 import React from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 
 export function DrawerScroll({
   children,
@@ -10,6 +10,8 @@ export function DrawerScroll({
   onScrollBeginDrag,
   onScrollEndDrag,
   scrollRef,
+  onScroll,
+  scrollEventThrottle,
 }: {
   children: React.ReactNode;
   topPadding?: number;
@@ -18,6 +20,8 @@ export function DrawerScroll({
   onScrollBeginDrag?: () => void;
   onScrollEndDrag?: () => void;
   scrollRef?: React.RefObject<ScrollView>;
+  onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  scrollEventThrottle?: number;
 }) {
   const insets = indicatorSide === "right" ? { right: 0 } : { left: 0 };
   return (
@@ -31,6 +35,8 @@ export function DrawerScroll({
       style={styles.scroll}
       onScrollBeginDrag={onScrollBeginDrag}
       onScrollEndDrag={onScrollEndDrag}
+      onScroll={onScroll}
+      scrollEventThrottle={scrollEventThrottle ?? 16}
     >
       {children}
     </ScrollView>

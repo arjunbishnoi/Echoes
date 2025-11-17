@@ -1,5 +1,9 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
 import type { User } from "@/types/user";
+import { ActivityStorage } from "@/utils/activityStorage";
+import { Storage } from "@/utils/asyncStorage";
+import { EchoStorage } from "@/utils/echoStorage";
+import { FriendStorage } from "@/utils/friendStorage";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { AuthService } from "./services/authService";
 import { UserService } from "./services/userService";
 
@@ -7,7 +11,9 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isGuest: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signInAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
@@ -19,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
+  const namespaceRef = useRef<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = AuthService.onAuthStateChanged((firebaseUser) => {
@@ -36,6 +43,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     try {
       await AuthService.signInWithGoogle();
+      setIsGuest(false);
+    } catch (error) {
+      throw error;
+    }
+  };
+
+  const signInWithApple = async () => {
+    try {
+      await AuthService.signInWithApple();
+      setIsGuest(false);
     } catch (error) {
       throw error;
     }
@@ -97,13 +114,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  useEffect(() => {
+    const applyNamespace = async () => {
+      const nextNamespace = isGuest ? "guest" : user?.id ?? "anon";
+      if (namespaceRef.current === nextNamespace) {
+        return;
+      }
+      namespaceRef.current = nextNamespace;
+      Storage.setNamespace(nextNamespace);
+      await Promise.all([
+        EchoStorage.clear(),
+        ActivityStorage.clear(),
+        FriendStorage.clear(),
+      ]);
+    };
+    void applyNamespace();
+  }, [user?.id, isGuest]);
+
   return (
     <AuthContext.Provider
       value={{
         user,
         isLoading,
         isAuthenticated: !!user,
+        isGuest,
         signInWithGoogle,
+        signInWithApple,
         signInAsGuest,
         signOut,
         updateProfile,

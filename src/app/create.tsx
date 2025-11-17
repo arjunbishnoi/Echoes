@@ -49,7 +49,7 @@ export default function CreateEchoScreen() {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: COVER_IMAGE_ASPECT_RATIO,
       quality: 0.9,

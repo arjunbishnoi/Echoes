@@ -1,7 +1,8 @@
+import EchoNotifItem from "@/components/notifications/EchoNotifItem";
+import { colors, spacing } from "@/theme/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, spacing } from "@/theme/theme";
 
 type Props = (
   | {
@@ -10,6 +11,7 @@ type Props = (
       coverUri: string;
       participants?: string[];
       userAvatarUri?: string;
+      onOptionsPress?: () => void;
     }
   | {
       kind: "friend_request" | "friend_accepted" | "friend_added_to_echo" | "friend_added_content";
@@ -22,12 +24,14 @@ type Props = (
       onAcceptRequest?: () => void;
       onDeclineRequest?: () => void;
       onPress?: () => void;
+      onOptionsPress?: () => void;
     }
   | {
       avatarUri: string;
       name: string;
       text: string;
       rightThumbUri: string;
+      onOptionsPress?: () => void;
     }
 );
 
@@ -35,34 +39,16 @@ function ProfileUpdateItem(props: Props) {
   if ("kind" in props) {
     if (props.kind === "lock" || props.kind === "unlock") {
       const isUnlock = props.kind === "unlock";
-      const isShared = props.participants && props.participants.length > 0;
       return (
-        <View style={styles.row}> 
-          {isShared ? (
-            <View style={styles.sharedIconWrap}>
-              <Ionicons name="people" size={16} color={colors.white} />
-            </View>
-          ) : (
-            <Image 
-              source={{ uri: props.userAvatarUri || 'https://picsum.photos/seed/user/100/100' }} 
-              style={styles.avatar} 
-            />
-          )}
-          <View style={styles.textContainer}>
-            <Text style={styles.notifText} numberOfLines={3}>
-              <Text style={styles.notifBold}>{props.title}</Text>
-              <Text> will be {isUnlock ? "unlocked" : "locked"} in 1 day.</Text>
-            </Text>
-          </View>
-          <View style={styles.coverContainer}>
-            <Image source={{ uri: props.coverUri }} style={styles.largeThumb} />
-            <View style={styles.coverIconOverlay}>
-              <View style={styles.coverIconShadow}>
-                <Ionicons name={isUnlock ? "checkmark" : "lock-closed"} size={20} color={colors.white} />
-              </View>
-            </View>
-          </View>
-        </View>
+        <EchoNotifItem
+          coverUri={props.coverUri}
+          actorAvatarUri={props.userAvatarUri}
+          onOptionsPress={props.onOptionsPress}
+          message={[
+            { text: props.title, bold: true },
+            { text: ` will be ${isUnlock ? "unlocked" : "locked"} soon.` },
+          ]}
+        />
       );
     }
     if (props.kind === "friend_request") {
@@ -91,6 +77,14 @@ function ProfileUpdateItem(props: Props) {
               <Ionicons name="person-add" size={20} color={colors.white} />
             </Pressable>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={12}
+            onPress={(e) => { e.stopPropagation(); props.onOptionsPress?.(); }}
+            style={styles.optionsBtn}
+          >
+            <Ionicons name="ellipsis-horizontal" size={18} color={colors.white} />
+          </Pressable>
         </Pressable>
       );
     }
@@ -111,35 +105,49 @@ function ProfileUpdateItem(props: Props) {
           <View style={styles.iconContainer}>
             <Ionicons name="checkmark" size={24} color={colors.white} />
           </View>
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={12}
+            onPress={(e) => { e.stopPropagation(); props.onOptionsPress?.(); }}
+            style={styles.optionsBtn}
+          >
+            <Ionicons name="ellipsis-horizontal" size={18} color={colors.white} />
+          </Pressable>
         </Pressable>
       );
     }
     if (props.kind === "friend_added_to_echo") {
       return (
-        <View style={styles.rowCentered}> 
-          <Image source={{ uri: props.friendAvatarUri }} style={styles.avatar} />
-          <View style={styles.textContainer}>
-            <Text style={styles.notifText} numberOfLines={3}>
-              <Text style={styles.notifBold}>{props.friendName}</Text>
-              <Text> added you to {props.echoTitle ?? "an echo"}.</Text>
-            </Text>
-          </View>
-          {props.coverUri && <Image source={{ uri: props.coverUri }} style={styles.largeThumb} />}
-        </View>
+        <EchoNotifItem
+          coverUri={props.coverUri}
+          actorAvatarUri={props.friendAvatarUri}
+          onPress={props.onPress}
+          onOptionsPress={props.onOptionsPress}
+          message={[
+            { text: props.friendName, bold: true },
+            { text: " added you to " },
+            { text: props.echoTitle ?? "an echo", bold: true },
+            { text: "." },
+          ]}
+        />
       );
     }
     if (props.kind === "friend_added_content") {
       return (
-        <View style={styles.rowCentered}> 
-          <Image source={{ uri: props.friendAvatarUri }} style={styles.avatar} />
-          <View style={styles.textContainer}>
-            <Text style={styles.notifText} numberOfLines={3}>
-              <Text style={styles.notifBold}>{props.friendName}</Text>
-              <Text> added {props.photosCount ?? 3} photos to {props.echoTitle ?? "an echo"}.</Text>
-            </Text>
-          </View>
-          {props.coverUri && <Image source={{ uri: props.coverUri }} style={styles.largeThumb} />}
-        </View>
+        <EchoNotifItem
+          coverUri={props.coverUri}
+          actorAvatarUri={props.friendAvatarUri}
+          onPress={props.onPress}
+          onOptionsPress={props.onOptionsPress}
+          message={[
+            { text: props.friendName, bold: true },
+            { text: " added " },
+            { text: String(props.photosCount ?? 3), bold: true },
+            { text: " photos to " },
+            { text: props.echoTitle ?? "an echo", bold: true },
+            { text: "." },
+          ]}
+        />
       );
     }
     return null;
@@ -153,6 +161,14 @@ function ProfileUpdateItem(props: Props) {
         <Text style={styles.text}>{text}</Text>
       </View>
       <Image source={{ uri: rightThumbUri }} style={styles.thumb} />
+      <Pressable
+        accessibilityRole="button"
+        hitSlop={12}
+        onPress={props.onOptionsPress}
+        style={styles.optionsBtn}
+      >
+        <Ionicons name="ellipsis-horizontal" size={18} color={colors.white} />
+      </Pressable>
     </View>
   );
 }
@@ -162,6 +178,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     height: 64,
+  },
+  optionsBtn: {
+    marginLeft: spacing.md,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
   },
   iconWrap: {
     justifyContent: "center",
@@ -231,7 +255,7 @@ const styles = StyleSheet.create({
   },
   name: {
     color: colors.textPrimary,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   text: {
     color: colors.textSecondary,
@@ -244,7 +268,7 @@ const styles = StyleSheet.create({
   },
   notifBold: {
     color: colors.textPrimary,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   thumb: {
     width: 28,
@@ -268,10 +292,11 @@ const styles = StyleSheet.create({
   rowCentered: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: spacing.md,
+    paddingVertical: 8,
     borderRadius: 12,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.surface,
+    paddingHorizontal: 0,
+    paddingRight: 0,
+    backgroundColor: "transparent",
   },
 });
 

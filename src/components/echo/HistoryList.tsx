@@ -1,6 +1,7 @@
-import { colors, spacing } from "@/theme/theme";
+import { spacing } from "@/theme/theme";
 import type { EchoActivity } from "@/types/echo";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import EchoNotifItem from "../notifications/EchoNotifItem";
 import EmptyState from "../ui/EmptyState";
 
 interface HistoryListProps {
@@ -35,26 +36,23 @@ export default function HistoryList({ activities = [] }: HistoryListProps) {
   return (
     <View style={styles.container}>
       {activities.map((activity, index) => {
-        const isUser = activity.userName === "You";
         const uniqueKey = activity.id || `history-${activity.timestamp}-${activity.userId || index}-${index}`;
+        const isYou = activity.userName === "You";
+        const actorAvatarUri =
+          activity.userAvatar ||
+          (isYou ? "https://picsum.photos/seed/user/100/100" : `https://picsum.photos/seed/${activity.userId}/100/100`);
 
         return (
-          <View key={uniqueKey} style={styles.item}>
-            <View style={styles.avatar}>
-              <Image
-                source={{ 
-                  uri: activity.userAvatar || 
-                    (isUser ? "https://picsum.photos/seed/user/100/100" : `https://picsum.photos/seed/${activity.userId}/100/100`)
-                }}
-                style={styles.avatarImage}
-                resizeMode="cover"
+          <View key={uniqueKey}>
+            {index > 0 ? <View style={{ height: spacing.lg }} /> : null}
+            <View style={styles.row}>
+              <EchoNotifItem
+                actorAvatarUri={actorAvatarUri}
+                displayName={activity.userName}
+                subtitleText={activity.description}
+                timestamp={activity.timestamp}
+                hideCover
               />
-            </View>
-            <View style={styles.content}>
-              <Text style={styles.text}>
-                <Text style={styles.friendName}>{activity.userName}</Text> {activity.description}
-              </Text>
-              <Text style={styles.time}>{getTimeAgo(activity.timestamp)}</Text>
             </View>
           </View>
         );
@@ -73,38 +71,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     paddingBottom: spacing.xxl + spacing.xl + 20,
   },
-  item: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.surfaceBorder,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: spacing.md,
-    overflow: "hidden",
-  },
-  avatarImage: {
-    width: "100%",
-    height: "100%",
-  },
-  content: {
-    flex: 1,
-  },
-  text: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    marginBottom: 2,
-  },
-  friendName: {
-    fontWeight: "600",
-  },
-  time: {
-    color: colors.textSecondary,
-    fontSize: 12,
+  row: {
+    paddingVertical: 0,
   },
 });
 

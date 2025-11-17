@@ -1,13 +1,13 @@
 import { UnifiedFormSection } from "@/components/forms/UnifiedForm";
 import { UnifiedFormRow } from "@/components/forms/UnifiedFormRow";
 import { FormSection } from "@/components/IOSForm";
-import { dummyFriends } from "@/data/dummyFriends";
-import { useEchoDraft } from "@/utils/echoDraft";
 import { colors, spacing } from "@/theme/theme";
+import { useEchoDraft } from "@/utils/echoDraft";
+import { useFriends } from "@/utils/friendContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useCallback, useMemo, useState } from "react";
-import { ActionSheetIOS, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, TouchableWithoutFeedback, View } from "react-native";
+import { ActionSheetIOS, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableWithoutFeedback, View } from "react-native";
 
 type Friend = {
   id: string;
@@ -20,14 +20,15 @@ export default function CreateEchoSettingsScreen() {
   const [showLockPicker, setShowLockPicker] = useState(false);
   const [showUnlockPicker, setShowUnlockPicker] = useState(false);
 
-  const friends: Friend[] = useMemo(
+  const { friends } = useFriends();
+  const collaboratorOptions: Friend[] = useMemo(
     () =>
-      dummyFriends.map((f) => ({
+      friends.map((f) => ({
         id: f.id,
         name: f.displayName,
         avatarUri: f.photoURL || "",
       })),
-    []
+    [friends]
   );
 
   const toggleCollaborator = useCallback(
@@ -127,30 +128,36 @@ export default function CreateEchoSettingsScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.avatarsRow}
           >
-            {friends.map(friend => {
-              const selected = collaboratorIds.includes(friend.id);
-              return (
-                <Pressable
-                  key={friend.id}
-                  onPress={() => toggleCollaborator(friend.id)}
-                  style={[styles.avatarWrap, selected && styles.avatarWrapSelected]}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Select ${friend.name}`}
-                >
-                  <ImageBackground
-                    source={{ uri: friend.avatarUri }}
-                    style={styles.avatarImage}
-                    imageStyle={{ borderRadius: 100 }}
+            {collaboratorOptions.length === 0 ? (
+              <View style={styles.emptyCollaborators}>
+                <Text style={styles.emptyCollaboratorsText}>No friends available to invite.</Text>
+              </View>
+            ) : (
+              collaboratorOptions.map(friend => {
+                const selected = collaboratorIds.includes(friend.id);
+                return (
+                  <Pressable
+                    key={friend.id}
+                    onPress={() => toggleCollaborator(friend.id)}
+                    style={[styles.avatarWrap, selected && styles.avatarWrapSelected]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select ${friend.name}`}
                   >
-                    {selected ? (
-                      <View style={styles.avatarSelectedBadge}>
-                        <Ionicons name="checkmark" size={14} color={colors.black} />
-                      </View>
-                    ) : null}
-                  </ImageBackground>
-                </Pressable>
-              );
-            })}
+                    <ImageBackground
+                      source={friend.avatarUri ? { uri: friend.avatarUri } : undefined}
+                      style={[styles.avatarImage, !friend.avatarUri && styles.avatarFallback]}
+                      imageStyle={{ borderRadius: 100 }}
+                    >
+                      {selected ? (
+                        <View style={styles.avatarSelectedBadge}>
+                          <Ionicons name="checkmark" size={14} color={colors.black} />
+                        </View>
+                      ) : null}
+                    </ImageBackground>
+                  </Pressable>
+                );
+              })
+            )}
           </ScrollView>
         </FormSection>
       ) : null}
@@ -251,6 +258,14 @@ const styles = StyleSheet.create({
   avatarsRow: {
     paddingVertical: spacing.sm,
   },
+  emptyCollaborators: {
+    paddingVertical: spacing.sm,
+    paddingRight: spacing.md,
+  },
+  emptyCollaboratorsText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+  },
   avatarWrap: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
@@ -266,6 +281,10 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: "100%",
     height: "100%",
+    backgroundColor: colors.surface,
+  },
+  avatarFallback: {
+    backgroundColor: colors.surface,
   },
   avatarSelectedBadge: {
     position: "absolute",

@@ -1,8 +1,33 @@
+import { getDb } from "@/db/client";
+import { enqueuePendingOp } from "@/db/pendingOps";
 import type { EchoActivity } from "@/types/echo";
-import { Storage } from "./asyncStorage";
 
 let activitiesCache: EchoActivity[] = [];
 let isInitialized = false;
+
+async function reloadCache() {
+  const db = getDb();
+  const rows = await db.getAllAsync<any>(
+    `SELECT * FROM activities ORDER BY datetime(timestamp) DESC`
+  );
+  activitiesCache = rows.map((row) => ({
+    id: row.id,
+    echoId: row.echoId,
+    type: row.type,
+    userId: row.userId,
+    userName: row.userName,
+    userAvatar: row.userAvatar ?? undefined,
+    description: row.description,
+    timestamp: row.timestamp,
+    mediaType: row.mediaType ?? undefined,
+  }));
+}
+
+function sortActivities(list: EchoActivity[]): EchoActivity[] {
+  return [...list].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  );
+}
 
 export const ActivityStorage = {
   isReady: (): boolean => {
@@ -11,8 +36,7 @@ export const ActivityStorage = {
   initialize: async (): Promise<void> => {
     if (isInitialized) return;
     try {
-      const stored = await Storage.getActivities();
-      activitiesCache = (stored as EchoActivity[] | null) || [];
+      await reloadCache();
       isInitialized = true;
     } catch (error) {
       console.error("Failed to initialize activities:", error);
@@ -22,42 +46,44 @@ export const ActivityStorage = {
   },
 
   persist: async (): Promise<boolean> => {
-    try {
-      return await Storage.setActivities(activitiesCache);
-    } catch (error) {
-      console.error("Failed to persist activities:", error);
-      return false;
-    }
+    return true;
   },
 
   getAll: (): EchoActivity[] => {
-    return [...activitiesCache].sort((a, b) => {
-      const dateA = new Date(a.timestamp).getTime();
-      const dateB = new Date(b.timestamp).getTime();
-      return dateB - dateA;
-    });
+    return sortActivities(activitiesCache);
   },
 
   getByEchoId: (echoId: string): EchoActivity[] => {
-    return activitiesCache
-      .filter((a) => a.echoId === echoId)
-      .sort((a, b) => {
-        const dateA = new Date(a.timestamp).getTime();
-        const dateB = new Date(b.timestamp).getTime();
-        return dateB - dateA;
-      });
+    return sortActivities(activitiesCache.filter((a) => a.echoId === echoId));
   },
 
   add: async (activity: EchoActivity): Promise<EchoActivity> => {
-    activitiesCache = [activity, ...activitiesCache];
-    await ActivityStorage.persist();
+    const db = getDb();
+    await db.runAsync(
+      `INSERT INTO activities (id, echoId, type, description, timestamp, userId, userName, userAvatar, mediaType)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        activity.id,
+        activity.echoId,
+        activity.type,
+        activity.description ?? null,
+        activity.timestamp,
+        activity.userId ?? null,
+        activity.userName ?? null,
+        activity.userAvatar ?? null,
+        activity.mediaType ?? null,
+      ]
+    );
+    await enqueuePendingOp("activity", activity.id, "activity", { echoId: activity.echoId });
+    await reloadCache();
     return activity;
   },
 
   delete: async (id: string): Promise<boolean> => {
+    const db = getDb();
+    await db.runAsync(`DELETE FROM activities WHERE id = ?`, [id]);
     const initialLength = activitiesCache.length;
     activitiesCache = activitiesCache.filter((a) => a.id !== id);
-    await ActivityStorage.persist();
     return activitiesCache.length < initialLength;
   },
 
@@ -111,17 +137,17 @@ export const ActivityStorage = {
 
   createBatchMediaUploaded: async (
     echoId: string,
-    mediaItems: Array<{type: "photo" | "video" | "audio" | "document"}>,
+    mediaItems: Array<{ type: "photo" | "video" | "audio" | "document" }>,
     userId: string,
     userName: string = "You",
     userAvatar?: string
   ): Promise<EchoActivity> => {
     const count = mediaItems.length;
-    const types = mediaItems.map(m => m.type);
+    const types = mediaItems.map((m) => m.type);
     const uniqueTypes = [...new Set(types)];
-    
+
     let description: string;
-    
+
     if (count === 1) {
       const typeLabel = {
         photo: "a photo",
@@ -182,7 +208,9 @@ export const ActivityStorage = {
     return await ActivityStorage.add(activity);
   },
 
-  clear: () => {
+  clear: async () => {
+    const db = getDb();
+    await db.runAsync(`DELETE FROM activities`);
     activitiesCache = [];
     isInitialized = false;
   },

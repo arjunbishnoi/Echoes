@@ -1,6 +1,12 @@
 import { colors, radii, spacing } from "@/theme/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Audio } from "expo-av";
+import type { AudioRecorder } from "expo-audio";
+import {
+    AudioModule,
+    RecordingPresets,
+    requestRecordingPermissionsAsync,
+    setAudioModeAsync,
+} from "expo-audio";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -13,15 +19,15 @@ type Props = {
 export default function AudioRecorderModal({ visible, onClose, onSaved }: Props) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingRef = useRef<AudioRecorder | null>(null);
   const [durationMs, setDurationMs] = useState(0);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
-      const req = await Audio.requestPermissionsAsync();
+      const req = await requestRecordingPermissionsAsync();
       if (!mounted) return;
-      setHasPermission(req.status === "granted");
+      setHasPermission(req.granted);
     })();
     return () => {
       mounted = false;
@@ -35,11 +41,13 @@ export default function AudioRecorderModal({ visible, onClose, onSaved }: Props)
         try {
           const rec = recordingRef.current;
           if (!rec) return;
-          const status = await rec.getStatusAsync();
+          const status = rec.getStatus();
           if (status.isRecording && typeof status.durationMillis === "number") {
             setDurationMs(status.durationMillis);
           }
-        } catch {}
+        } catch {
+          // ignore polling errors
+        }
       }, 300);
     } else {
       setDurationMs(0);
@@ -52,32 +60,35 @@ export default function AudioRecorderModal({ visible, onClose, onSaved }: Props)
   const startRecording = useCallback(async () => {
     if (hasPermission !== true) return;
     try {
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const recording = new Audio.Recording();
-      const options = {
-        ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
-        ios: {
-          ...Audio.RecordingOptionsPresets.HIGH_QUALITY.ios,
-          isMeteringEnabled: true,
-        },
-      } as const;
-      await recording.prepareToRecordAsync(options);
-      await recording.startAsync();
-      recordingRef.current = recording;
+      if (!recordingRef.current) {
+        recordingRef.current = new AudioModule.AudioRecorder(RecordingPresets.HIGH_QUALITY);
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recordingRef.current.prepareToRecordAsync(RecordingPresets.HIGH_QUALITY);
+      recordingRef.current.record();
       setIsRecording(true);
-    } catch {}
+    } catch (error) {
+      if (__DEV__) console.error("Failed to start modal recorder:", error);
+    }
   }, [hasPermission]);
 
   const stopAndSave = useCallback(async () => {
     const recording = recordingRef.current;
     if (!recording) return;
     try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      if (uri) {
-        onSaved({ uri, name: `echo-audio-${Date.now()}.m4a`, mimeType: "audio/m4a", duration: durationMs });
+      await recording.stop();
+      const status = recording.getStatus();
+      if (status.url) {
+        onSaved({
+          uri: status.url,
+          name: `echo-audio-${Date.now()}.m4a`,
+          mimeType: "audio/m4a",
+          duration: durationMs,
+        });
       }
-    } catch {}
+    } catch (error) {
+      if (__DEV__) console.error("Failed to stop modal recorder:", error);
+    }
     setIsRecording(false);
     recordingRef.current = null;
     onClose();

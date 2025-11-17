@@ -1,6 +1,13 @@
 import type { EchoMedia } from "@/types/echo";
-import { Audio } from "expo-av";
-import { useCallback, useRef, useState } from "react";
+import type { AudioPlayer, AudioRecorder } from "expo-audio";
+import {
+    AudioModule,
+    RecordingPresets,
+    createAudioPlayer,
+    requestRecordingPermissionsAsync,
+    setAudioModeAsync,
+} from "expo-audio";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const generateUniqueId = (): string => {
   const timestamp = Date.now();
@@ -16,148 +23,182 @@ export function useAudioRecorder() {
   const [isPaused, setIsPaused] = useState(false);
   const [durationMs, setDurationMs] = useState(0);
   const [recordingUri, setRecordingUri] = useState<string | null>(null);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recordingRef = useRef<AudioRecorder | null>(null);
   const [levels, setLevels] = useState<number[]>([]);
   const [allLevels, setAllLevels] = useState<number[]>([]);
-  const pausedSoundRef = useRef<Audio.Sound | null>(null);
+  const statusIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isPausedRef = useRef(false);
+  const previewPlayerRef = useRef<AudioPlayer | null>(null);
 
-  // No-op
+  const stopStatusInterval = useCallback(() => {
+    if (statusIntervalRef.current) {
+      clearInterval(statusIntervalRef.current);
+      statusIntervalRef.current = null;
+    }
+  }, []);
+
+  const updateLevelsFromMetering = useCallback((metering: number) => {
+    const amp = Math.max(0, Math.min(1, (metering + 60) / 60));
+    setAllLevels((prev) => {
+      const next = prev.length > 5000 ? prev.slice(prev.length - 4000) : prev;
+      return [...next, amp];
+    });
+    setLevels((prev) => {
+      const MAX_LIVE = 1200;
+      const next = prev.length > MAX_LIVE ? prev.slice(prev.length - (MAX_LIVE - 1)) : prev;
+      return [...next, amp];
+    });
+  }, []);
+
+  const ensureRecorder = useCallback((): AudioRecorder => {
+    if (!recordingRef.current) {
+      recordingRef.current = new AudioModule.AudioRecorder({
+        ...RecordingPresets.HIGH_QUALITY,
+        isMeteringEnabled: true,
+      });
+    }
+    return recordingRef.current;
+  }, []);
+
+  const releasePreviewPlayer = useCallback(() => {
+    try {
+      previewPlayerRef.current?.remove?.();
+    } catch {
+      // ignore preview cleanup errors
+    }
+    previewPlayerRef.current = null;
+  }, []);
+
+  const startStatusInterval = useCallback(
+    (recorder: AudioRecorder) => {
+      stopStatusInterval();
+      statusIntervalRef.current = setInterval(() => {
+        try {
+          const status = recorder.getStatus();
+          setDurationMs(status.durationMillis ?? 0);
+          setRecordingUri(status.url ?? null);
+          if (!isPausedRef.current && typeof status.metering === "number") {
+            updateLevelsFromMetering(status.metering);
+          }
+        } catch {
+          // ignore polling errors
+        }
+      }, 100);
+    },
+    [stopStatusInterval, updateLevelsFromMetering]
+  );
+
+  const clearRecorder = useCallback(async () => {
+    try {
+      await recordingRef.current?.stop();
+    } catch {}
+    stopStatusInterval();
+    recordingRef.current = null;
+    releasePreviewPlayer();
+  }, [releasePreviewPlayer, stopStatusInterval]);
+
+  useEffect(() => {
+    return () => {
+      void clearRecorder();
+    };
+  }, [clearRecorder]);
 
   const startRecording = useCallback(async (): Promise<boolean> => {
     try {
+      releasePreviewPlayer();
       let granted = hasPermission === true;
       if (!granted) {
-        const req = await Audio.requestPermissionsAsync();
-        granted = req.status === "granted";
+        const permission = await requestRecordingPermissionsAsync();
+        granted = permission.granted;
         setHasPermission(granted);
       }
       if (!granted) return false;
 
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const recording = new Audio.Recording();
-      const recordingOptions = {
-        ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
-        ios: {
-          ...Audio.RecordingOptionsPresets.HIGH_QUALITY.ios,
-          isMeteringEnabled: true,
-        },
-      };
-      await recording.prepareToRecordAsync(recordingOptions);
-      await recording.startAsync();
-      
-      recordingRef.current = recording;
+      const recorder = ensureRecorder();
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync({
+        ...RecordingPresets.HIGH_QUALITY,
+        isMeteringEnabled: true,
+      });
+      recorder.record();
+
       setIsRecording(true);
       setIsPaused(false);
+      isPausedRef.current = false;
       setLevels([]);
       setAllLevels([]);
-      
-      // Get URI for playback when paused
-      const uri = recording.getURI();
-      setRecordingUri(uri);
-      // Set status updates
-      recording.setOnRecordingStatusUpdate((status) => {
-        if (!status.isRecording) return;
-        if (typeof status.durationMillis === "number") setDurationMs(status.durationMillis);
-        if (status.metering !== undefined && typeof status.metering === "number" && !isPaused) {
-          const amp = Math.max(0, Math.min(1, (status.metering + 60) / 60));
-          setAllLevels(prev => {
-            const next = prev.length > 5000 ? prev.slice(prev.length - 4000) : prev;
-            return [...next, amp];
-          });
-          setLevels(prev => {
-            const MAX_LIVE = 1200;
-            const next = prev.length > MAX_LIVE ? prev.slice(prev.length - (MAX_LIVE - 1)) : prev;
-            return [...next, amp];
-          });
-        }
-      });
-      recording.setProgressUpdateInterval(50);
-      
+      startStatusInterval(recorder);
       return true;
     } catch (err) {
       console.error("Failed to start recording:", err);
       return false;
     }
-  }, [hasPermission]);
+  }, [ensureRecorder, hasPermission, releasePreviewPlayer, startStatusInterval]);
 
   const stopRecording = useCallback(async (): Promise<EchoMedia | null> => {
-    const recording = recordingRef.current;
-    if (!recording) return null;
+    const recorder = recordingRef.current;
+    if (!recorder) return null;
 
     try {
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      
-      if (uri) {
-        const media: EchoMedia = {
-          id: generateUniqueId(),
-          echoId: "",
-          type: "audio",
-          uri,
-          createdAt: new Date().toISOString(),
-          uploadedBy: "local",
-        };
-        
-        setIsRecording(false);
-        setIsPaused(false);
-        setRecordingUri(null);
-        recordingRef.current = null;
-        try { await pausedSoundRef.current?.unloadAsync(); } catch {}
-        pausedSoundRef.current = null;
-        return media;
-      }
+      await recorder.stop();
     } catch (err) {
       console.error("Failed to stop recording:", err);
     }
 
+    stopStatusInterval();
+    const status = recorder.getStatus();
+    const uri = status.url ?? null;
+
     setIsRecording(false);
     setIsPaused(false);
-    setRecordingUri(null);
+    isPausedRef.current = false;
+    setRecordingUri(uri);
     recordingRef.current = null;
-    try { await pausedSoundRef.current?.unloadAsync(); } catch {}
-    pausedSoundRef.current = null;
+    releasePreviewPlayer();
+
+    if (uri) {
+      return {
+        id: generateUniqueId(),
+        echoId: "",
+        type: "audio",
+        uri,
+        createdAt: new Date().toISOString(),
+        uploadedBy: "local",
+      };
+    }
+
     return null;
-  }, []);
+  }, [releasePreviewPlayer, stopStatusInterval]);
 
   const cancelRecording = useCallback(async () => {
-    const recording = recordingRef.current;
-    if (!recording) return;
+    const recorder = recordingRef.current;
+    if (!recorder) return;
 
     try {
-      await recording.stopAndUnloadAsync();
+      await recorder.stop();
     } catch (err) {
       console.error("Failed to cancel recording:", err);
     }
 
+    stopStatusInterval();
     setIsRecording(false);
     setIsPaused(false);
+    isPausedRef.current = false;
     setRecordingUri(null);
     recordingRef.current = null;
     setLevels([]);
     setAllLevels([]);
-    try { await pausedSoundRef.current?.unloadAsync(); } catch {}
-    pausedSoundRef.current = null;
-  }, []);
+    releasePreviewPlayer();
+  }, [releasePreviewPlayer, stopStatusInterval]);
 
   const pauseRecording = useCallback(async (): Promise<boolean> => {
-    const recording = recordingRef.current;
-    if (!recording || !isRecording || isPaused) return false;
+    const recorder = recordingRef.current;
+    if (!recorder || !isRecording || isPaused) return false;
 
     try {
-      await recording.pauseAsync();
+      recorder.pause();
       setIsPaused(true);
-      // Prepare a playback sound for paused state if possible
-      try {
-        const { sound } = await recording.createNewLoadedSoundAsync(
-          { isLooping: false, progressUpdateIntervalMillis: 50 },
-          () => {}
-        );
-        // Unload any previous
-        try { await pausedSoundRef.current?.unloadAsync(); } catch {}
-        pausedSoundRef.current = sound;
-      } catch (e) {
-        // ignore if not supported
-      }
+      isPausedRef.current = true;
       return true;
     } catch (err) {
       console.error("Failed to pause recording:", err);
@@ -166,14 +207,14 @@ export function useAudioRecorder() {
   }, [isRecording, isPaused]);
 
   const resumeRecording = useCallback(async (): Promise<boolean> => {
-    const recording = recordingRef.current;
-    if (!recording || !isRecording || !isPaused) return false;
+    const recorder = recordingRef.current;
+    if (!recorder || !isRecording || !isPaused) return false;
 
     try {
-      try { await pausedSoundRef.current?.unloadAsync(); } catch {}
-      pausedSoundRef.current = null;
-      await recording.startAsync();
+      recorder.record();
       setIsPaused(false);
+      isPausedRef.current = false;
+      releasePreviewPlayer();
       return true;
     } catch (err) {
       console.error("Failed to resume recording:", err);
@@ -181,18 +222,18 @@ export function useAudioRecorder() {
     }
   }, [isRecording, isPaused]);
 
-  const getPlaybackSoundAsync = useCallback(async (): Promise<Audio.Sound | null> => {
-    if (pausedSoundRef.current) return pausedSoundRef.current;
-    const uri = recordingUri;
-    if (!uri) return null;
-    try {
-      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: false });
-      pausedSoundRef.current = sound;
-      return sound;
-    } catch (error) {
-      if (__DEV__) console.error("Failed to create sound:", error);
-      return null;
+  const getPlaybackSoundAsync = useCallback(async (): Promise<AudioPlayer | null> => {
+    if (!recordingUri) return null;
+    if (!previewPlayerRef.current) {
+      try {
+        previewPlayerRef.current = createAudioPlayer({ uri: recordingUri }, { updateInterval: 200 });
+      } catch (error) {
+        if (__DEV__) console.error("Failed to create preview player:", error);
+        previewPlayerRef.current = null;
+        return null;
+      }
     }
+    return previewPlayerRef.current;
   }, [recordingUri]);
 
   return {

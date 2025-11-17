@@ -1,7 +1,9 @@
-import ProfileUpdateItem from "@/components/ProfileUpdateItem";
+import EchoNotifItem from "@/components/notifications/EchoNotifItem";
+// Using a larger custom spacer for notifications to increase vertical gap
 import EmptyState from "@/components/ui/EmptyState";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { spacing } from "@/theme/theme";
+import { useFriends } from "@/utils/friendContext";
 import { useRouter } from "expo-router";
 import React from "react";
 import { View } from "react-native";
@@ -11,76 +13,22 @@ interface NotificationsListProps {
 }
 
 export default function NotificationsList({ type }: NotificationsListProps) {
-  if (type === "personal") {
-    return <PersonalUpdates />;
-  } else if (type === "social") {
-    return <SocialUpdates />;
-  } else {
-    return <AllUpdates />;
-  }
+  // For now, all tabs show the single social notification type we're building
+  return <OnlySocialAddedItems />;
 }
 
-function PersonalUpdates() {
-  const { echoes } = useEchoStorage();
-  const lockedSoon = echoes.filter((c) => c.status === "ongoing").slice(0, 2);
-  const unlockedSoon = echoes.filter((c) => c.status === "locked").slice(0, 2);
-  
-  const aboutToChange = [
-    ...lockedSoon.map((c) => ({ 
-      kind: "lock" as const, 
-      title: c.title, 
-      coverUri: c.imageUrl || "",
-      participants: c.collaboratorIds,
-      userAvatarUri: "https://picsum.photos/seed/user/100/100"
-    })),
-    ...unlockedSoon.map((c) => ({ 
-      kind: "unlock" as const, 
-      title: c.title, 
-      coverUri: c.imageUrl || "",
-      participants: c.collaboratorIds,
-      userAvatarUri: "https://picsum.photos/seed/user/100/100"
-    }))
-  ];
-
-  if (aboutToChange.length === 0) {
-    return (
-      <EmptyState
-        icon="notifications-outline"
-        title="No Updates"
-        subtitle="You'll see notifications about your echoes here"
-      />
-    );
-  }
-
-  return (
-    <>
-      {aboutToChange.map((n, idx) => (
-        <React.Fragment key={`${n.kind}-${idx}`}>
-          {idx > 0 ? <View style={{ height: spacing.xs }} /> : null}
-          <ProfileUpdateItem 
-            kind={n.kind} 
-            title={n.title} 
-            coverUri={n.coverUri}
-            participants={n.participants}
-            userAvatarUri={n.userAvatarUri}
-          />
-        </React.Fragment>
-      ))}
-    </>
-  );
-}
-
-function SocialUpdates() {
+function OnlySocialAddedItems() {
   const router = useRouter();
   const { echoes } = useEchoStorage();
+  const { friendsById } = useFriends();
   const social = echoes.filter((c) => c.collaboratorIds && c.collaboratorIds.length > 0).slice(0, 6);
 
   if (social.length === 0) {
     return (
       <EmptyState
         icon="people-outline"
-        title="No Social Activity"
-        subtitle="Friend notifications will appear here"
+        title="No collaborator activity"
+        subtitle="Invite friends to echoes to see updates here."
       />
     );
   }
@@ -88,133 +36,49 @@ function SocialUpdates() {
   return (
     <>
       {social.map((c, idx) => {
-        const friendId = String(idx + 1);
-        const friendName = `Friend ${idx + 1}`;
-        const friendAvatar = `https://picsum.photos/seed/friend-${c.id}-${idx}/100/100`;
-        const variant = idx % 4;
-        const handlePress = () => router.push({ pathname: "/friend/[id]", params: { id: friendId, name: friendName, avatar: friendAvatar } });
+        const collaboratorProfiles =
+          c.collaboratorIds?.map((id) => friendsById[id]).filter(Boolean) ?? [];
+        const firstCollaborator = collaboratorProfiles[0];
+        const friendName =
+          firstCollaborator?.displayName ||
+          collaboratorProfiles.map((profile) => profile.displayName).join(", ") ||
+          c.ownerName ||
+          "Collaborator";
+        const friendAvatar =
+          firstCollaborator?.photoURL ||
+          c.ownerPhotoURL ||
+          `https://picsum.photos/seed/friend-${c.id}-${idx}/100/100`;
+        const handlePressFriend = () =>
+          router.push({
+            pathname: "/friend/[id]",
+            params: {
+              id: firstCollaborator?.id ?? "",
+              name: friendName,
+              avatar: friendAvatar,
+            },
+          });
+        const handlePressEcho = () => router.push({ pathname: "/(main)/echo/[id]", params: { id: c.id } });
+        const countAdded = c.media?.length ?? 0;
+        const timestamp = new Date(Date.now() - (idx + 1) * 60 * 60 * 1000);
+        let coverUri = c.imageUrl && c.imageUrl.length > 0 ? c.imageUrl : `https://picsum.photos/seed/echo-${c.id}-${idx}/600/400`;
         
         return (
           <React.Fragment key={`s-${c.id}`}>
-            {idx > 0 ? <View style={{ height: spacing.xs }} /> : null}
-            {variant === 0 ? (
-              <ProfileUpdateItem 
-                kind="friend_request" 
-                friendName={friendName} 
-                friendAvatarUri={friendAvatar}
-                friendId={friendId}
-                onPress={handlePress}
-              />
-            ) : variant === 1 ? (
-              <ProfileUpdateItem 
-                kind="friend_accepted" 
-                friendName={friendName} 
-                friendAvatarUri={friendAvatar}
-                friendId={friendId}
-                onPress={handlePress}
-              />
-            ) : variant === 2 ? (
-              <ProfileUpdateItem
-                kind="friend_added_to_echo"
-                friendName={friendName}
-                friendAvatarUri={friendAvatar}
-                friendId={friendId}
-                echoTitle={c.title}
-                coverUri={c.imageUrl || ""}
-                onPress={handlePress}
-              />
-            ) : (
-              <ProfileUpdateItem
-                kind="friend_added_content"
-                friendName={friendName}
-                friendAvatarUri={friendAvatar}
-                friendId={friendId}
-                photosCount={(Number(c.id) % 5) + 1}
-                coverUri={c.imageUrl || ""}
-                echoTitle={c.title}
-                onPress={handlePress}
-              />
-            )}
+            {idx > 0 ? <View style={{ height: spacing.lg }} /> : null}
+            <EchoNotifItem
+              actorAvatarUri={friendAvatar}
+              coverUri={coverUri}
+              displayName={friendName}
+              count={countAdded}
+              timestamp={timestamp}
+              onPressAvatar={handlePressFriend}
+              onPressContent={handlePressEcho}
+            />
           </React.Fragment>
         );
       })}
     </>
   );
-}
-
-function AllUpdates() {
-  const router = useRouter();
-  const { echoes } = useEchoStorage();
-  type Item = { ts: number; node: React.ReactNode };
-  const items: Item[] = [];
-  let order = 1000;
-  const pushGap = (key: string) => items.push({ ts: order--, node: <View key={key} style={{ height: spacing.xs }} /> });
-
-  const personalLocks = echoes.filter((c) => c.status === "ongoing").slice(0, 2);
-  const personalUnlocks = echoes.filter((c) => c.status === "locked").slice(0, 2);
-  personalLocks.forEach((c, i) => {
-    items.push({ 
-      ts: order--, 
-      node: <ProfileUpdateItem 
-        key={`pl-${c.id}-${i}`} 
-        kind="lock" 
-        title={c.title} 
-        coverUri={c.imageUrl || ""}
-        participants={c.collaboratorIds}
-        userAvatarUri="https://picsum.photos/seed/user/100/100"
-      /> 
-    });
-    pushGap(`gap-pl-${c.id}-${i}`);
-  });
-  personalUnlocks.forEach((c, i) => {
-    items.push({ 
-      ts: order--, 
-      node: <ProfileUpdateItem 
-        key={`pu-${c.id}-${i}`} 
-        kind="unlock" 
-        title={c.title} 
-        coverUri={c.imageUrl || ""}
-        participants={c.collaboratorIds}
-        userAvatarUri="https://picsum.photos/seed/user/100/100"
-      /> 
-    });
-    pushGap(`gap-pu-${c.id}-${i}`);
-  });
-
-  const social = echoes.filter((c) => c.collaboratorIds && c.collaboratorIds.length > 1).slice(0, 6);
-  
-  if (items.length === 0 && social.length === 0) {
-    return (
-      <EmptyState
-        icon="notifications-outline"
-        title="No Notifications"
-        subtitle="All your updates will appear here"
-      />
-    );
-  }
-  
-  social.forEach((c, idx) => {
-    const friendId = String(idx + 1);
-    const friendName = `Friend ${idx + 1}`;
-    const friendAvatar = `https://picsum.photos/seed/friend-${c.id}-${idx}/100/100`;
-    const variant = idx % 4;
-    const key = `s-${c.id}-${variant}`;
-    const handlePress = () => router.push({ pathname: "/friend/[id]", params: { id: friendId, name: friendName, avatar: friendAvatar } });
-    
-    let node: React.ReactNode;
-    if (variant === 0) node = <ProfileUpdateItem key={key} kind="friend_request" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} onPress={handlePress} />;
-    else if (variant === 1) node = <ProfileUpdateItem key={key} kind="friend_accepted" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} onPress={handlePress} />;
-    else if (variant === 2)
-      node = (
-        <ProfileUpdateItem key={key} kind="friend_added_to_echo" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} echoTitle={c.title} coverUri={c.imageUrl || ""} onPress={handlePress} />
-      );
-    else node = <ProfileUpdateItem key={key} kind="friend_added_content" friendName={friendName} friendAvatarUri={friendAvatar} friendId={friendId} photosCount={(Number(c.id) % 5) + 1} coverUri={c.imageUrl || ""} onPress={handlePress} />;
-    items.push({ ts: order--, node });
-    pushGap(`gap-${key}`);
-  });
-
-  const sorted = items.sort((a, b) => b.ts - a.ts);
-  return <>{sorted.map((it) => it.node)}</>;
 }
 
 

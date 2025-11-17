@@ -3,9 +3,10 @@ import LibraryItem from "@/components/LibraryItem";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { useFavoriteEchoes } from "@/hooks/useFavoriteEchoes";
 import { usePinnedEchoes } from "@/hooks/usePinnedEchoes";
+import { spacing } from "@/theme/theme";
 import { filterEchoesByStatus, searchEchoes, type EchoFilterType } from "@/utils/echoes";
 import React, { useMemo } from "react";
-import { ActionSheetIOS, Alert, Dimensions, Platform, View } from "react-native";
+import { ActionSheetIOS, Alert, Platform, View } from "react-native";
 import { AllEmptyState, LockedEmptyState, OngoingEmptyState, SearchEmptyState, UnlockedEmptyState } from "./LibraryEmptyStates";
 
 interface LibraryListProps {
@@ -18,7 +19,7 @@ export default function LibraryList({ filter, query, onItemPress }: LibraryListP
   const { echoes: all, updateEchoStatus, deleteEcho } = useEchoStorage();
   const { isFavorite, toggleFavorite } = useFavoriteEchoes();
   const { isPinned, togglePin } = usePinnedEchoes();
-  const segmentWidth = 0.25 * (Dimensions.get("window").width - 32);
+  // Cover width is derived inside LibraryItem from homescreen card aspect ratio; no external width needed.
 
   const filtered = useMemo(() => {
     if (query && query.trim().length > 0) {
@@ -156,7 +157,7 @@ export default function LibraryList({ filter, query, onItemPress }: LibraryListP
 
         return (
           <React.Fragment key={`${filter}-${c.id}`}>
-            {idx > 0 ? <View style={{ height: 2 }} /> : null}
+            {idx > 0 ? <View style={{ height: spacing.md }} /> : null}
             <LibraryItem
               title={c.title}
               thumbnailUri={c.imageUrl}
@@ -165,7 +166,6 @@ export default function LibraryList({ filter, query, onItemPress }: LibraryListP
               textColor={completed ? "#EAEAEA" : undefined}
               onPress={() => onItemPress(c.id)}
               onMenuPress={() => handleMenuPress(c.id, c.title ?? "Echo")}
-              coverWidth={segmentWidth}
             />
           </React.Fragment>
         );
@@ -192,13 +192,13 @@ export default function LibraryList({ filter, query, onItemPress }: LibraryListP
         {ongoing.length > 0 && renderList(ongoing)}
         {locked.length > 0 && (
           <>
-            <View style={{ height: 2 }} />
+            <View style={{ height: spacing.md }} />
             {renderList(locked, { locked: true })}
           </>
         )}
         {unlocked.length > 0 && (
           <>
-            <View style={{ height: 2 }} />
+            <View style={{ height: spacing.md }} />
             {renderList(unlocked, { completed: true })}
           </>
         )}

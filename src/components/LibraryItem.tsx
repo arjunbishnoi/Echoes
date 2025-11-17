@@ -1,7 +1,7 @@
+import { getDrawerCoverSizing } from "@/components/drawer/coverSizing";
 import { GestureConfig } from "@/config/ui";
 import { HERO_HEIGHT } from "@/constants/dimensions";
 import { colors, radii, spacing } from "@/theme/theme";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useMemo } from "react";
 import { Dimensions, Image, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -16,7 +16,6 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   onPress?: () => void;
   onMenuPress?: () => void;
-  coverWidth?: number;
 };
 
 function LibraryItem({
@@ -28,7 +27,6 @@ function LibraryItem({
   style,
   onPress,
   onMenuPress,
-  coverWidth,
 }: Props) {
   const tapGesture = useMemo(() => {
     return Gesture.Tap()
@@ -42,14 +40,26 @@ function LibraryItem({
       });
   }, [onPress]);
 
-  const cw = Math.max(40, Math.round(coverWidth ?? COVER_WIDTH));
+  const longPressGesture = useMemo(() => {
+    return Gesture.LongPress()
+      .minDuration(350)
+      .onEnd((_evt, success) => {
+        'worklet';
+        if (success && onMenuPress) {
+          runOnJS(onMenuPress)();
+        }
+      });
+  }, [onMenuPress]);
+
+  const sizing = useMemo(() => getDrawerCoverSizing(COVER_HEIGHT), []);
+  const cw = Math.max(40, Math.round(sizing.width));
   const content = (
     <View style={styles.inner}>
       <View style={[styles.leftCluster, { width: cw }]}>
         {thumbnailUri ? (
-          <Image source={{ uri: thumbnailUri }} style={[styles.thumbnail, { width: cw }]} />
+          <Image source={{ uri: thumbnailUri }} style={[styles.thumbnail, { width: cw, borderRadius: sizing.radius }]} />
         ) : (
-          <View style={[styles.thumbnail, { width: cw, backgroundColor: "rgba(255,255,255,0.18)" }]} />
+          <View style={[styles.thumbnail, { width: cw, borderRadius: sizing.radius, backgroundColor: "rgba(255,255,255,0.18)" }]} />
         )}
       </View>
       <View style={styles.centerCluster}>
@@ -60,13 +70,12 @@ function LibraryItem({
           {title}
         </Text>
       </View>
-      <View style={{ width: 12 }} />
     </View>
   );
 
   return (
     <View style={[styles.container, style]}>
-      <GestureDetector gesture={tapGesture}>
+      <GestureDetector gesture={Gesture.Race(tapGesture, longPressGesture)}>
         <Pressable
           accessibilityRole={onPress ? "button" : undefined}
           android_ripple={onPress && Platform.OS === "android" ? { color: "rgba(255,255,255,0.12)" } : undefined}
@@ -74,27 +83,8 @@ function LibraryItem({
         >
           {/* No background behind content */}
           {content}
-          {locked ? (
-            <View style={styles.statusBadgeLeft}>
-              <Ionicons name="lock-closed" size={16} color={colors.white} />
-            </View>
-          ) : null}
-          {!locked && completed ? (
-            <View style={styles.statusBadgeLeft}>
-              <Ionicons name="checkmark-sharp" size={16} color={colors.white} />
-            </View>
-          ) : null}
         </Pressable>
       </GestureDetector>
-      {onMenuPress ? (
-        <Pressable
-          onPress={onMenuPress}
-          style={styles.menuButton}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="ellipsis-horizontal" size={20} color={colors.white} />
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -111,9 +101,10 @@ const HOMESCREEN_CARD_HEIGHT = HERO_HEIGHT; // SCREEN_WIDTH * 0.4
 const HOMESCREEN_CARD_RADIUS = radii.card; // 30
 
 // Scale down to fit drawer while maintaining exact aspect ratio
-const COVER_HEIGHT = 40; // shorter height for better visual consistency
+const COVER_HEIGHT = 48; // larger height for better visual presence
 const SCALE_FACTOR = COVER_HEIGHT / HOMESCREEN_CARD_HEIGHT;
 const COVER_WIDTH = Math.round(HOMESCREEN_CARD_WIDTH * SCALE_FACTOR);
+// Corner radius scaled from homescreen card radius for consistency
 const COVER_RADIUS = Math.round(HOMESCREEN_CARD_RADIUS * SCALE_FACTOR);
 
 const STATUS_ICON_SIZE = 24;
@@ -174,7 +165,7 @@ const styles = StyleSheet.create({
   centerCluster: {
     flex: 1,
     justifyContent: "center", // vertically center title
-    paddingRight: 78, // reserve space for status icon + menu button
+    paddingRight: 0,
   },
   title: {
     fontSize: 16,

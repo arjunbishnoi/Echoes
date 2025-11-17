@@ -2,6 +2,7 @@ import BottomGradient from "@/components/BottomGradient";
 import LibraryList from "@/components/drawer/LibraryList";
 import { ContentWidth, DrawerScroll } from "@/components/DrawerContentLayout";
 import LibraryBottomBar from "@/components/LibraryBottomBar";
+import ListSeparator from "@/components/ListSeparator";
 import RightDrawerSearchBar from "@/components/RightDrawerSearchBar";
 import TopGradient from "@/components/TopGradient";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
@@ -53,7 +54,7 @@ export default function RightDrawerContent({ insetTop }: RightDrawerContentProps
       <ContentWidth>
         <Text style={styles.title}>{rightTabTitle}</Text>
       </ContentWidth>
-      <View style={{ height: spacing.lg }} />
+      <ListSeparator />
       <LibraryList
         filter={query.trim().length > 0 ? "all" : filter}
         query={query}

@@ -3,16 +3,15 @@ import AudioWaveform from "@/components/echo/AudioWaveform";
 import { colors, sizes } from "@/theme/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { setAudioModeAsync } from "expo-audio";
-import { Audio as AV } from "expo-av";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
-  Easing,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
+    Easing,
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    withTiming,
 } from "react-native-reanimated";
 
 type Props = {
@@ -24,7 +23,7 @@ type Props = {
   recordingDurationMs?: number;
   levels?: number[];
   allLevels?: number[];
-  getPlaybackSoundAsync?: () => Promise<import("expo-av").Audio.Sound | null>;
+  getPlaybackSoundAsync?: () => Promise<any | null>;
   skipInitialAnimation?: boolean;
   hasStagedMedia?: boolean;
 };
@@ -253,7 +252,7 @@ export default function AudioRecordingBottomBar({
     // For SDK54 migration we accept a generic player with play/pause/seek/unload and onStatus(cb)
     const maybePlayer = await getPlaybackSoundAsync();
     if (maybePlayer) {
-      // If it's an expo-av Sound, we adapt to a player-like API
+      // expo-av style sound (older path)
       if (typeof maybePlayer.setOnPlaybackStatusUpdate === "function") {
         const sound = maybePlayer;
         sound.setOnPlaybackStatusUpdate((status: any) => {
@@ -270,22 +269,39 @@ export default function AudioRecordingBottomBar({
           seek: (ms: number) => sound.setPositionAsync?.(ms),
           unload: () => sound.unloadAsync?.(),
         };
-      } else {
-        // Assume it's an expo-audio player with a similar surface
-        const player = maybePlayer as any;
-        if (player && typeof player.onStatus === "function") {
-          player.onStatus((s: any) => {
-            const dur = (s?.durationMillis ?? soundDuration) || 1;
-            const pos = s?.positionMillis ?? 0;
+      } else if (
+        typeof maybePlayer.addListener === "function" &&
+        typeof maybePlayer.play === "function"
+      ) {
+        const expoAudioPlayer = maybePlayer as any;
+        const subscription = expoAudioPlayer.addListener(
+          "playbackStatusUpdate",
+          (status: any) => {
+            if (!status) return;
+            const durSeconds = typeof status.duration === "number" ? status.duration : 0;
+            const posSeconds = typeof status.currentTime === "number" ? status.currentTime : 0;
+            const dur = durSeconds * 1000 || 1;
+            const pos = posSeconds * 1000;
             setPlayProgress(Math.max(0, Math.min(1, pos / dur)));
             setSoundDuration(dur);
-            setIsPlaying(s?.isPlaying === true);
-          });
-        }
-        playerRef.current = player;
+            setIsPlaying(status.playing === true);
+          }
+        );
+        playerRef.current = {
+          play: () => Promise.resolve(expoAudioPlayer.play()),
+          pause: () => Promise.resolve(expoAudioPlayer.pause()),
+          seek: (ms: number) => expoAudioPlayer.seekTo?.(ms / 1000) ?? Promise.resolve(),
+          unload: () => {
+            subscription?.remove?.();
+            expoAudioPlayer.pause?.();
+            expoAudioPlayer.remove?.();
+          },
+        };
+      } else {
+        playerRef.current = maybePlayer as any;
       }
     }
-  }, [getPlaybackSoundAsync, soundDuration]);
+  }, [getPlaybackSoundAsync]);
 
   const handleTogglePlay = useCallback(async () => {
     try {
@@ -298,10 +314,10 @@ export default function AudioRecordingBottomBar({
         setIsPlaying(false);
       } else {
         try {
-          await AV.setAudioModeAsync({
-            allowsRecordingIOS: false,
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
+          await setAudioModeAsync({
+            allowsRecording: false,
+            playsInSilentMode: true,
+            shouldPlayInBackground: false,
           });
         } catch (error) {
           if (__DEV__) console.error("Failed to set audio mode for playback:", error);

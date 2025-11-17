@@ -99,10 +99,14 @@ export const FriendStorage = {
     return [...removedFriendsCache];
   },
 
-  clear: () => {
+  clear: async () => {
     nicknameCache = [];
     removedFriendsCache = [];
     isInitialized = false;
+    await Promise.all([
+      Storage.remove(STORAGE_KEYS.FRIEND_NICKNAMES),
+      Storage.remove(STORAGE_KEYS.REMOVED_FRIENDS),
+    ]);
   },
 };
 

@@ -1,15 +1,16 @@
 import ListSeparator from "@/components/ListSeparator";
 import TimeCapsuleCard from "@/components/TimeCapsuleCard";
 import { HERO_HEIGHT } from "@/constants/dimensions";
-import { dummyFriends } from "@/data/dummyFriends";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { useFavoriteEchoes } from "@/hooks/useFavoriteEchoes";
 import { useFriendContextMenu } from "@/hooks/useFriendContextMenu";
 import { colors, spacing } from "@/theme/theme";
 import { computeEchoProgressPercent } from "@/utils/echoes";
+import { useFriends } from "@/utils/friendContext";
+import { UserService } from "@/utils/services/userService";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -23,19 +24,53 @@ export default function FriendDetailScreen() {
     avatar?: string;
   }>();
 
-  const displayName = typeof nameParam === "string" && nameParam.length > 0 ? nameParam : "Friend";
-  const photoURL = typeof avatarParam === "string" && avatarParam.length > 0
-    ? avatarParam
-    : `https://picsum.photos/seed/${id ?? "friend"}/300/300`;
+  const fallbackDisplayName =
+    typeof nameParam === "string" && nameParam.length > 0 ? nameParam : "Friend";
+  const fallbackPhotoURL =
+    typeof avatarParam === "string" && avatarParam.length > 0
+      ? avatarParam
+      : `https://picsum.photos/seed/${id ?? "friend"}/300/300`;
+
+  const displayName = friendProfile?.displayName ?? fallbackDisplayName;
+  const photoURL = friendProfile?.photoURL ?? fallbackPhotoURL;
 
   const { echoes } = useEchoStorage();
   const { isFavorite } = useFavoriteEchoes();
   const { showContextMenu } = useFriendContextMenu();
 
   const friendId = typeof id === "string" ? id : String(id ?? "");
-  const friendProfile = useMemo(() => dummyFriends.find((f) => f.id === friendId), [friendId]);
+  const { friends, friendsById } = useFriends();
+  const [externalProfile, setExternalProfile] = useState<import("@/types/user").UserProfile | null>(null);
+  const friendProfile = friendsById[friendId] ?? externalProfile ?? null;
   const friendBio = friendProfile?.bio ?? "";
-  const mutuals = useMemo(() => dummyFriends.filter((f) => f.id !== friendId), [friendId]);
+  const mutuals = useMemo(() => friends.filter((f) => f.id !== friendId), [friends, friendId]);
+
+  useEffect(() => {
+    if (friendsById[friendId]) {
+      setExternalProfile(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const profile = await UserService.getUser(friendId);
+        if (!cancelled && profile) {
+          setExternalProfile({
+            id: profile.id,
+            displayName: profile.displayName,
+            username: profile.username,
+            photoURL: profile.photoURL,
+            bio: profile.bio,
+          });
+        }
+      } catch (error) {
+        if (__DEV__) console.warn("Failed to load friend profile:", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [friendId, friendsById]);
 
   const friendEchoes = useMemo(() => {
     return echoes.filter((e) => e.ownerId === friendId || (e.collaboratorIds?.includes(friendId)));
@@ -46,12 +81,12 @@ export default function FriendDetailScreen() {
     if (echo.ownerPhotoURL) avatars.push(echo.ownerPhotoURL);
     if (echo.collaboratorIds && echo.collaboratorIds.length > 0) {
       echo.collaboratorIds.forEach((collaboratorId) => {
-        const friend = dummyFriends.find((f) => f.id === collaboratorId);
+        const friend = friendsById[collaboratorId];
         if (friend?.photoURL) avatars.push(friend.photoURL);
       });
     }
     return avatars;
-  }, []);
+  }, [friendsById]);
 
   const renderItem = useCallback(({ item }: { item: import("@/types/echo").Echo }) => (
     <TimeCapsuleCard
@@ -163,7 +198,7 @@ const AVATAR_MUTUAL_SIZE = 32; // slightly larger for mutuals per request
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.modalSurface,
   },
   header: {
     alignItems: "center",

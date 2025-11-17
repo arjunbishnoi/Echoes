@@ -11,6 +11,19 @@ const generateUniqueId = (): string => {
   return `${timestamp}-${random1}-${random2}-${random3}`;
 };
 
+const buildEchoMediaFromAsset = (asset: ImagePicker.ImagePickerAsset): EchoMedia => {
+  const type = asset.type === "video" ? "video" : "photo";
+  return {
+    id: generateUniqueId(),
+    echoId: "",
+    type,
+    uri: asset.uri,
+    thumbnailUri: asset.uri,
+    createdAt: new Date().toISOString(),
+    uploadedBy: "local",
+  };
+};
+
 export function useMediaPicker() {
   const pickFromCamera = async (): Promise<EchoMedia | null> => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -20,22 +33,14 @@ export function useMediaPicker() {
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.9,
+      mediaTypes: ["images", "videos"],
+      allowsEditing: false,
+      quality: 0.95,
       exif: false,
     });
 
     if (!result.canceled && result.assets[0]) {
-      return {
-        id: generateUniqueId(),
-        echoId: "",
-        type: "photo",
-        uri: result.assets[0].uri,
-        thumbnailUri: result.assets[0].uri,
-        createdAt: new Date().toISOString(),
-        uploadedBy: "local",
-      };
+      return buildEchoMediaFromAsset(result.assets[0]);
     }
     return null;
   };
@@ -48,23 +53,15 @@ export function useMediaPicker() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images", "videos", "livePhotos"],
       allowsEditing: false,
       allowsMultipleSelection: true,
-      quality: 0.9,
+      quality: 1,
       exif: false,
     });
 
     if (!result.canceled && result.assets.length > 0) {
-      return result.assets.map((asset) => ({
-        id: generateUniqueId(),
-        echoId: "",
-        type: "photo" as const,
-        uri: asset.uri,
-        thumbnailUri: asset.uri,
-        createdAt: new Date().toISOString(),
-        uploadedBy: "local",
-      }));
+      return result.assets.map((asset) => buildEchoMediaFromAsset(asset));
     }
     return null;
   };
@@ -77,21 +74,13 @@ export function useMediaPicker() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      mediaTypes: ["videos"],
       allowsEditing: false,
-      quality: 0.9,
+      quality: 0.95,
     });
 
     if (!result.canceled && result.assets[0]) {
-      return {
-        id: generateUniqueId(),
-        echoId: "",
-        type: "video",
-        uri: result.assets[0].uri,
-        thumbnailUri: result.assets[0].uri,
-        createdAt: new Date().toISOString(),
-        uploadedBy: "local",
-      };
+      return buildEchoMediaFromAsset(result.assets[0]);
     }
     return null;
   };

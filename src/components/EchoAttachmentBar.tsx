@@ -33,9 +33,9 @@ export default function EchoAttachmentBar({ onResult, widthPercent }: Props) {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") return;
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        mediaTypes: ["images", "videos"],
+        allowsEditing: false,
         quality: 1,
-        allowsMultipleSelection: false,
         videoMaxDuration: 60,
       });
       if (!result.canceled) {
@@ -58,7 +58,8 @@ export default function EchoAttachmentBar({ onResult, widthPercent }: Props) {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") return;
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        mediaTypes: ["images", "videos", "livePhotos"],
+        allowsEditing: false,
         allowsMultipleSelection: false,
         quality: 1,
       });
@@ -119,7 +120,7 @@ export default function EchoAttachmentBar({ onResult, widthPercent }: Props) {
           ))}
         </View>
       </View>
-      {/* Audio recording temporarily disabled to avoid expo-av deprecation warning */}
+      {/* Audio recording temporarily disabled when audio module unavailable */}
     </View>
   );
 }

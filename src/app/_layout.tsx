@@ -1,10 +1,12 @@
 import { BackButton } from "@/components/BackButton";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
+import { runMigrations } from "@/db/client";
 import { colors } from "@/theme/theme";
 import { ActivityStorage } from "@/utils/activityStorage";
 import { AuthProvider } from "@/utils/authContext";
 import { EchoDraftProvider } from "@/utils/echoDraft";
 import { EchoStorage } from "@/utils/echoStorage";
+import { FriendProvider } from "@/utils/friendContext";
 import { HomeEchoProvider } from "@/utils/homeEchoContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as FileSystem from "expo-file-system";
@@ -106,6 +108,16 @@ export default function RootLayout() {
     }
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        await runMigrations();
+      } catch (error) {
+        if (__DEV__) console.error("Database migration failed:", error);
+      }
+    })();
+  }, []);
+
   // Warm initialize storages early to avoid per-screen spinners
   useEffect(() => {
     (async () => {
@@ -135,9 +147,10 @@ export default function RootLayout() {
       <GestureHandlerRootView style={styles.rootContainer}>
         <StatusBar style="light" />
         <AuthProvider>
-          <HomeEchoProvider>
-            <EchoDraftProvider>
-              <Stack 
+          <FriendProvider>
+            <HomeEchoProvider>
+              <EchoDraftProvider>
+                <Stack 
                 screenOptions={{ 
                   contentStyle: { backgroundColor: colors.background },
                   animation: "default",
@@ -313,9 +326,10 @@ export default function RootLayout() {
                     gestureEnabled: true,
                   }}
                 />
-              </Stack>
-            </EchoDraftProvider>
-          </HomeEchoProvider>
+                </Stack>
+              </EchoDraftProvider>
+            </HomeEchoProvider>
+          </FriendProvider>
         </AuthProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>

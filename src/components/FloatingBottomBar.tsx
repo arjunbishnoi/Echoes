@@ -1,10 +1,11 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
-import { memo } from "react";
-import { PixelRatio, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import BottomBarBackground from "@/components/BottomBarBackground";
 import useDrawerPair from "@/hooks/useDrawerPair";
 import { colors, radii, sizes } from "@/theme/theme";
-import BottomBarBackground from "@/components/BottomBarBackground";
+import { useAuth } from "@/utils/authContext";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { memo } from "react";
+import { Image, PixelRatio, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 
 type Props = {
   onPressProfile?: () => void;
@@ -20,6 +21,7 @@ function FloatingBottomBar({
   const { left: leftProgress, right: rightProgress } = useDrawerPair();
   const { width: screenWidth } = useWindowDimensions();
   const onePx = 1 / PixelRatio.get();
+  const { user } = useAuth();
 
   const plusAnimated = useAnimatedStyle(() => {
     const lp = leftProgress?.value ?? 0;
@@ -93,7 +95,11 @@ function FloatingBottomBar({
       <View style={styles.bar}>
         <BottomBarBackground />
         <Pressable onPress={onPressProfile} style={styles.sideButton} hitSlop={12} accessibilityRole="button" accessibilityLabel="Open profile">
-          <Ionicons name="person" size={26} color={colors.textPrimary} />
+          <Image
+            source={{ uri: user?.photoURL || "https://picsum.photos/seed/arjun-bishnoi/400/400" }}
+            style={styles.avatarImage}
+            resizeMode="cover"
+          />
         </Pressable>
 
         <Animated.View style={[styles.plusButton, plusAnimated]}>
@@ -151,7 +157,7 @@ const styles = StyleSheet.create({
   sideButton: {
     width: sizes.floatingBar.sideButtonSize,
     height: sizes.floatingBar.sideButtonSize,
-    borderRadius: radii.sm,
+    borderRadius: sizes.floatingBar.sideButtonSize / 2,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -178,6 +184,17 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: 2,
     backgroundColor: colors.textPrimary,
+  },
+  avatarImage: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+  },
+  whiteDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.white,
   },
 });
 

@@ -1,6 +1,7 @@
-import { dummyFriends } from "@/data/dummyFriends";
+import EmptyState from "@/components/ui/EmptyState";
 import { colors, spacing } from "@/theme/theme";
 import type { UserProfile } from "@/types/user";
+import { useFriends } from "@/utils/friendContext";
 import { useRouter } from "expo-router";
 import { useCallback } from "react";
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
@@ -9,6 +10,7 @@ const AVATAR_SIZE = 56;
 
 export default function FriendsScreen() {
   const router = useRouter();
+  const { friends, isLoading, refresh } = useFriends();
 
   const handleFriendPress = useCallback(
     (friend: UserProfile) => {
@@ -50,11 +52,25 @@ export default function FriendsScreen() {
   return (
     <View style={styles.container}>
       <FlatList
-        data={dummyFriends}
+        data={friends}
         keyExtractor={(item) => item.id}
         renderItem={renderFriend}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          friends.length === 0 && styles.emptyListContent,
+        ]}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListEmptyComponent={
+          !isLoading ? (
+            <EmptyState
+              icon="people-outline"
+              title="No friends yet"
+              subtitle="Add friends to collaborate on echoes."
+            />
+          ) : null
+        }
+        refreshing={isLoading}
+        onRefresh={refresh}
       />
     </View>
   );
@@ -64,6 +80,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  emptyListContent: {
+    flexGrow: 1,
+    justifyContent: "center",
   },
   listContent: {
     padding: spacing.lg,

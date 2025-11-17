@@ -1,10 +1,15 @@
 import BottomGradient from "@/components/BottomGradient";
+import EchoContentTabs from "@/components/echo/EchoContentTabs";
+import EchoHeroImage from "@/components/echo/EchoHeroImage";
+import EchoProgressTimeline from "@/components/echo/EchoProgressTimeline";
 import EchoTabBar, { type EchoTab } from "@/components/echo/EchoTabBar";
 import EchoTitle from "@/components/echo/EchoTitle";
+import ImageGradientOverlay from "@/components/echo/ImageGradientOverlay";
+import RecordingArea from "@/components/echo/RecordingArea";
+import MediaGalleryViewer from "@/components/MediaGalleryViewer";
 import EmptyState from "@/components/ui/EmptyState";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { SCREEN_WIDTH } from "@/constants/dimensions";
-import { dummyFriends } from "@/data/dummyFriends";
 import { useEchoActivities } from "@/hooks/useEchoActivities";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { useEchoTabs } from "@/hooks/useEchoTabs";
@@ -14,6 +19,7 @@ import { colors, spacing } from "@/theme/theme";
 import type { Echo } from "@/types/echo";
 import { computeEchoProgressPercent } from "@/utils/echoes";
 import { getExpoSwiftUI } from "@/utils/expoUi";
+import { useFriends } from "@/utils/friendContext";
 import { useHomeEchoContext } from "@/utils/homeEchoContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
@@ -22,12 +28,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ActionSheetIOS, Alert, Animated, Image, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import EchoContentTabs from "@/components/echo/EchoContentTabs";
-import EchoHeroImage from "@/components/echo/EchoHeroImage";
-import EchoProgressTimeline from "@/components/echo/EchoProgressTimeline";
-import ImageGradientOverlay from "@/components/echo/ImageGradientOverlay";
-import MediaGalleryViewer from "@/components/MediaGalleryViewer";
-import RecordingArea from "@/components/echo/RecordingArea";
 
 export default function EchoDetailScreen() {
   const { id } = useLocalSearchParams<{
@@ -100,6 +100,7 @@ export default function EchoDetailScreen() {
   const { showHeaderTitle, handleTitleLayout, handleScroll } = useHeaderTitle(insets.top);
   const { isVisibleOnHome, addToHome, removeFromHome } = useHomeEchoContext();
   const { isFavorite, toggleFavorite } = useFavoriteEchoes();
+  const { friendsById } = useFriends();
 
   const collaboratorAvatars = useMemo(() => {
     const avatars: string[] = [];
@@ -110,7 +111,7 @@ export default function EchoDetailScreen() {
     
     if (capsuleData.collaboratorIds && capsuleData.collaboratorIds.length > 0) {
       capsuleData.collaboratorIds.forEach((collaboratorId) => {
-        const friend = dummyFriends.find((f) => f.id === collaboratorId);
+        const friend = friendsById[collaboratorId];
         if (friend?.photoURL) {
           avatars.push(friend.photoURL);
         }
@@ -118,7 +119,7 @@ export default function EchoDetailScreen() {
     }
     
     return avatars;
-  }, [capsuleData.ownerPhotoURL, capsuleData.collaboratorIds]);
+  }, [capsuleData.ownerPhotoURL, capsuleData.collaboratorIds, friendsById]);
   
   const progress = useMemo(() => {
     if (!capsule) return 0;
