@@ -57,18 +57,20 @@ const config: ExpoConfig = {
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
-    intentFilters: [
-      {
-        action: "VIEW",
-        category: ["BROWSABLE", "DEFAULT"],
-        data: [
+    intentFilters: googleAuthConfig.androidClientId
+      ? [
           {
-            scheme: "com.googleusercontent.apps.956489650665-p8v2mg1bjmq4b2an5sbdd9niighqc6bi",
-            host: "oauth2redirect",
+            action: "VIEW",
+            category: ["BROWSABLE", "DEFAULT"],
+            data: [
+              {
+                scheme: `com.googleusercontent.apps.${googleAuthConfig.androidClientId}`,
+                host: "oauth2redirect",
+              },
+            ],
           },
-        ],
-      },
-    ],
+        ]
+      : [],
     permissions: ["CAMERA", "RECORD_AUDIO", "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"],
   },
   web: {
