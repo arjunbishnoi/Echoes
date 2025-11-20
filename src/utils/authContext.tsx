@@ -28,13 +28,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const namespaceRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Check initial auth state immediately to speed up initial load
+    const checkInitialAuth = async () => {
+      try {
+        const currentUser = await AuthService.getCurrentUser();
+        if (currentUser && !isGuest) {
+          setUser(currentUser);
+        }
+        // Set loading to false regardless - either we have a user or we don't
+        setIsLoading(false);
+      } catch (error) {
+        // If check fails, still set loading to false and wait for onAuthStateChanged
+        setIsLoading(false);
+        if (__DEV__) {
+          console.log("[Auth] Initial auth check failed:", error);
+        }
+      }
+    };
+    
+    void checkInitialAuth();
+
     const unsubscribe = AuthService.onAuthStateChanged((firebaseUser) => {
+      if (__DEV__) {
+        console.log("[AuthContext] onAuthStateChanged callback, user:", !!firebaseUser, "isGuest:", isGuest);
+      }
+      
       if (isGuest) {
         setIsLoading(false);
         return;
       }
+      
       setUser(firebaseUser);
       setIsLoading(false);
+      
+      if (__DEV__) {
+        console.log("[AuthContext] User state updated, isAuthenticated:", !!firebaseUser);
+      }
     });
 
     return () => unsubscribe();
@@ -42,9 +71,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      await AuthService.signInWithGoogle();
+      if (__DEV__) {
+        console.log("[AuthContext] Starting Google sign-in...");
+      }
+      
+      const user = await AuthService.signInWithGoogle();
       setIsGuest(false);
+      
+      if (__DEV__) {
+        console.log("[AuthContext] Google sign-in completed, user:", !!user);
+      }
     } catch (error) {
+      if (__DEV__) {
+        console.error("[AuthContext] Google sign-in failed:", error);
+      }
       throw error;
     }
   };

@@ -12,7 +12,7 @@ import {
     onAuthStateChanged,
     signInWithCredential,
 } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, enableNetwork } from "firebase/firestore";
 import { Platform } from "react-native";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -68,8 +68,14 @@ export class AuthService {
         if (!nativeClient) {
           throw new Error("Missing native Google OAuth client ID for this platform");
         }
-        // Native redirect must use the GIS scheme format
-        redirectUri = `com.googleusercontent.apps.${nativeClient}:/oauth2redirect`;
+        // Extract just the client ID part if it's a full client ID string
+        // e.g., "956489650665-xxx.apps.googleusercontent.com" -> "956489650665-xxx"
+        let clientIdPart = nativeClient;
+        if (nativeClient.includes(".apps.googleusercontent.com")) {
+          clientIdPart = nativeClient.replace(".apps.googleusercontent.com", "");
+        }
+        // Native redirect must use the GIS scheme format: com.googleusercontent.apps.{CLIENT_ID}:/oauth2redirect
+        redirectUri = `com.googleusercontent.apps.${clientIdPart}:/oauth2redirect`;
       }
 
       if (__DEV__) {
@@ -139,6 +145,17 @@ export class AuthService {
         : GoogleAuthProvider.credential(null, accessToken);
       const userCredential = await signInWithCredential(auth, credential);
       
+      // Ensure Firestore network is enabled (but don't fail if it errors)
+      try {
+        await enableNetwork(db);
+      } catch (error) {
+        // Network might already be enabled or there might be connection issues
+        // This is not critical - Firestore will work offline/online automatically
+        if (__DEV__) {
+          console.log("[Auth] Firestore network enable (non-critical):", error);
+        }
+      }
+      
       const user: User = {
         id: userCredential.user.uid,
         email: userCredential.user.email!,
@@ -166,15 +183,35 @@ export class AuthService {
       };
 
       const userRef = doc(db, "users", user.id);
-      const userDoc = await getDoc(userRef);
       
-      if (userDoc.exists()) {
-        await setDoc(userRef, { 
-          ...userDoc.data(),
-          updatedAt: new Date().toISOString() 
-        }, { merge: true });
-      } else {
-        await setDoc(userRef, user);
+      // Try to get user document, but don't fail if offline
+      let userDoc;
+      try {
+        userDoc = await getDoc(userRef);
+      } catch (error) {
+        // If offline or network error, create new user document
+        if (__DEV__) {
+          console.log("[Auth] Firestore getDoc error (offline?), creating new user:", error);
+        }
+        userDoc = null;
+      }
+      
+      // Save or update user document
+      try {
+        if (userDoc?.exists()) {
+          await setDoc(userRef, { 
+            ...userDoc.data(),
+            updatedAt: new Date().toISOString() 
+          }, { merge: true });
+        } else {
+          await setDoc(userRef, user);
+        }
+      } catch (error) {
+        // If still offline, log but don't fail - user is authenticated
+        if (__DEV__) {
+          console.warn("[Auth] Failed to save user to Firestore (may be offline):", error);
+        }
+        // User is still authenticated, just Firestore write failed
       }
       
       return user;
@@ -291,14 +328,49 @@ export class AuthService {
       const currentUser = auth.currentUser;
       if (!currentUser) return null;
       
-      const userRef = doc(db, "users", currentUser.uid);
-      const userDoc = await getDoc(userRef);
-      
-      if (userDoc.exists()) {
-        return userDoc.data() as User;
+      // Try to get user from Firestore
+      try {
+        const userRef = doc(db, "users", currentUser.uid);
+        const userDoc = await getDoc(userRef);
+        
+        if (userDoc.exists()) {
+          return userDoc.data() as User;
+        }
+      } catch (error) {
+        // If Firestore is offline or fails, create user from Firebase Auth data
+        if (__DEV__) {
+          console.log("[Auth] Firestore unavailable, using Firebase Auth data:", error);
+        }
       }
       
-      return null;
+      // If Firestore doesn't have the user or is offline, create from Firebase Auth
+      const user: User = {
+        id: currentUser.uid,
+        email: currentUser.email || "",
+        displayName: currentUser.displayName || "User",
+        photoURL: currentUser.photoURL || undefined,
+        username: currentUser.email?.split("@")[0] || "user",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        friendIds: [],
+        blockedUserIds: [],
+        settings: {
+          notifications: {
+            pushEnabled: true,
+            emailEnabled: true,
+            friendRequests: true,
+            echoUpdates: true,
+            echoUnlocks: true,
+          },
+          privacy: {
+            profileVisibility: "friends",
+            allowFriendRequests: true,
+          },
+          theme: "dark",
+        },
+      };
+      
+      return user;
     } catch {
       return null;
     }
@@ -318,9 +390,49 @@ export class AuthService {
 
   static onAuthStateChanged(callback: (user: User | null) => void) {
     return onAuthStateChanged(auth, async (firebaseUser) => {
+      if (__DEV__) {
+        console.log("[Auth] onAuthStateChanged fired, firebaseUser:", !!firebaseUser);
+      }
+      
       if (firebaseUser) {
-        const user = await this.getCurrentUser();
-        callback(user);
+        try {
+          const user = await this.getCurrentUser();
+          if (__DEV__) {
+            console.log("[Auth] getCurrentUser result:", !!user);
+          }
+          callback(user);
+        } catch (error) {
+          if (__DEV__) {
+            console.error("[Auth] getCurrentUser failed in onAuthStateChanged:", error);
+          }
+          // If getCurrentUser fails, still provide a basic user from Firebase Auth
+          const fallbackUser: User = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email || "",
+            displayName: firebaseUser.displayName || "User",
+            photoURL: firebaseUser.photoURL || undefined,
+            username: firebaseUser.email?.split("@")[0] || "user",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            friendIds: [],
+            blockedUserIds: [],
+            settings: {
+              notifications: {
+                pushEnabled: true,
+                emailEnabled: true,
+                friendRequests: true,
+                echoUpdates: true,
+                echoUnlocks: true,
+              },
+              privacy: {
+                profileVisibility: "friends",
+                allowFriendRequests: true,
+              },
+              theme: "dark",
+            },
+          };
+          callback(fallbackUser);
+        }
       } else {
         callback(null);
       }
