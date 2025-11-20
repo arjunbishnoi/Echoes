@@ -1,5 +1,6 @@
 import { BackButton } from "@/components/BackButton";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
+import { ToastProvider } from "@/contexts/ToastContext";
 import { runMigrations } from "@/db/client";
 import { colors } from "@/theme/theme";
 import { ActivityStorage } from "@/utils/activityStorage";
@@ -150,6 +151,7 @@ export default function RootLayout() {
           <FriendProvider>
             <HomeEchoProvider>
               <EchoDraftProvider>
+                <ToastProvider>
                 <Stack 
                 screenOptions={{ 
                   contentStyle: { backgroundColor: colors.background },
@@ -327,6 +329,7 @@ export default function RootLayout() {
                   }}
                 />
                 </Stack>
+                </ToastProvider>
               </EchoDraftProvider>
             </HomeEchoProvider>
           </FriendProvider>

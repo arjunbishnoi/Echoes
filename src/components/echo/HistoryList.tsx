@@ -44,7 +44,7 @@ export default function HistoryList({ activities = [] }: HistoryListProps) {
 
         return (
           <View key={uniqueKey}>
-            {index > 0 ? <View style={{ height: spacing.lg }} /> : null}
+            {index > 0 ? <View style={{ height: spacing.xl }} /> : null}
             <View style={styles.row}>
               <EchoNotifItem
                 actorAvatarUri={actorAvatarUri}
@@ -52,6 +52,9 @@ export default function HistoryList({ activities = [] }: HistoryListProps) {
                 subtitleText={activity.description}
                 timestamp={activity.timestamp}
                 hideCover
+                avatarSize={56}
+                activityType={activity.type}
+                mediaType={activity.mediaType}
               />
             </View>
           </View>
@@ -68,8 +71,8 @@ const styles = StyleSheet.create({
   },
   container: {
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    paddingBottom: spacing.xxl + spacing.xl + 20,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xl,
   },
   row: {
     paddingVertical: 0,

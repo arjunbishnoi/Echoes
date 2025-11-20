@@ -1,7 +1,6 @@
 import { UnifiedFormSection } from "@/components/forms/UnifiedForm";
 import { UnifiedFormRow } from "@/components/forms/UnifiedFormRow";
 import { FormSection } from "@/components/IOSForm";
-import IconButton from "@/components/ui/IconButton";
 import { HERO_HEIGHT, HERO_IMAGE_MARGIN_TOP } from "@/constants/dimensions";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { colors, radii, spacing } from "@/theme/theme";
@@ -303,12 +302,15 @@ export default function EditEchoScreen() {
         </Pressable>
       ),
       headerRight: () => (
-        <IconButton
-          icon="checkmark"
+        <Pressable
           onPress={handleSave}
-          color={colors.white}
-          style={{ backgroundColor: colors.blue }}
-        />
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Save"
+          style={styles.saveButton}
+        >
+          <Text style={styles.saveText}>Save</Text>
+        </Pressable>
       ),
     });
   }, [navigation, handleSave, handleCancel]);
@@ -700,12 +702,13 @@ const styles = StyleSheet.create({
     fontSize: 17,
   },
   saveButton: {
-    width: 40,
-    height: 40,
-    backgroundColor: colors.blue,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 2,
+  },
+  saveText: {
+    color: colors.white,
+    fontWeight: "600",
+    fontSize: 17,
   },
   modalOverlay: {
     flex: 1,

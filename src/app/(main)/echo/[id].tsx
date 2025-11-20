@@ -53,6 +53,7 @@ export default function EchoDetailScreen() {
     galleryVisible: false,
     selectedMediaIndex: 0,
     showHeaderShadow: false,
+    scrollY: 0,
   });
   const [stagedMedia, setStagedMedia] = useState<import("@/types/echo").EchoMedia[]>([]);
   const [transitioningFromRecording, setTransitioningFromRecording] = useState(false);
@@ -63,6 +64,7 @@ export default function EchoDetailScreen() {
       galleryVisible: false,
       selectedMediaIndex: 0,
       showHeaderShadow: false,
+      scrollY: 0,
     });
     setStagedMedia([]);
     scrollX.value = 0;
@@ -97,7 +99,7 @@ export default function EchoDetailScreen() {
     updateIndicatorPosition,
   } = useEchoTabs(isUnlocked ? "allMedia" as const : "history" as const);
 
-  const { showHeaderTitle, handleTitleLayout, handleScroll } = useHeaderTitle(insets.top);
+  const { showHeaderTitle, handleTitleLayout, handleTitleContainerLayout, handleScroll, titleContainerRef } = useHeaderTitle(insets.top);
   const { isVisibleOnHome, addToHome, removeFromHome } = useHomeEchoContext();
   const { isFavorite, toggleFavorite } = useFavoriteEchoes();
   const { friendsById } = useFriends();
@@ -420,6 +422,14 @@ export default function EchoDetailScreen() {
   return (
     <Animated.View key={id} style={[styles.container, { opacity: fadeAnim }]}>
       {/* Key forces complete reset, opacity hides transition */}
+      {/* Gradient overlay that scrolls up with content and stays in header */}
+      <ImageGradientOverlay 
+        key={`gradient-${id}`}
+        echoId={capsule.id}
+        imageUrl={capsule.imageUrl}
+        height={800}
+        scrollY={uiState.scrollY}
+      />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         bounces
@@ -428,14 +438,13 @@ export default function EchoDetailScreen() {
         onScroll={(e) => {
           const y = e.nativeEvent.contentOffset.y;
           handleScroll(y);
-          setUiState(prev => ({ ...prev, showHeaderShadow: y > 5 }));
+          setUiState(prev => ({ 
+            ...prev, 
+            showHeaderShadow: y > 5,
+            scrollY: y,
+          }));
         }}
       >
-        <ImageGradientOverlay 
-          key={`gradient-${id}`}
-          echoId={capsule.id} 
-          height={800} 
-        />
         <EchoHeroImage 
           key={`hero-${id}`}
           imageUrl={capsule.imageUrl} 
@@ -444,7 +453,7 @@ export default function EchoDetailScreen() {
         <View style={styles.contentContainer}>
           {/* Hero Section */}
           <View style={styles.heroSection}>
-            <View style={styles.titleContainer}>
+            <View ref={titleContainerRef} style={styles.titleContainer} onLayout={handleTitleContainerLayout}>
               <EchoTitle title={capsule.title} onLayout={handleTitleLayout} />
             </View>
 

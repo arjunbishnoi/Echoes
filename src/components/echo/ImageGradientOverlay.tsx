@@ -1,55 +1,87 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { useMemo } from "react";
-import { ColorValue, StyleSheet } from "react-native";
+import { useMemo, useEffect, useRef } from "react";
+import { ColorValue, StyleSheet, Animated } from "react-native";
+import { useImageColors } from "@/hooks/useImageColors";
+import { createGradientFromColors, getFallbackGradient } from "@/utils/imageColors";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = {
   height?: number;
   echoId?: string;
+  imageUrl?: string;
+  scrollY?: number;
 };
 
-// Optimized gradient presets with fewer stops for better performance
-const GRADIENT_PRESETS = [
-  ['rgba(186, 85, 211, 0.9)', 'rgba(75, 0, 130, 0.6)', 'rgba(10, 0, 15, 0.7)', 'rgba(0, 0, 0, 0.92)', 'rgba(0, 0, 0, 0.97)', 'rgba(0, 0, 0, 0.993)', 'rgba(0, 0, 0, 1)'],
-  ['rgba(0, 191, 255, 0.9)', 'rgba(0, 100, 200, 0.6)', 'rgba(0, 10, 20, 0.7)', 'rgba(0, 0, 0, 0.92)', 'rgba(0, 0, 0, 0.97)', 'rgba(0, 0, 0, 0.993)', 'rgba(0, 0, 0, 1)'],
-  ['rgba(255, 127, 80, 0.9)', 'rgba(200, 50, 50, 0.6)', 'rgba(20, 5, 5, 0.7)', 'rgba(0, 0, 0, 0.92)', 'rgba(0, 0, 0, 0.97)', 'rgba(0, 0, 0, 0.993)', 'rgba(0, 0, 0, 1)'],
-  ['rgba(64, 224, 208, 0.9)', 'rgba(0, 128, 128, 0.6)', 'rgba(0, 12, 12, 0.7)', 'rgba(0, 0, 0, 0.92)', 'rgba(0, 0, 0, 0.97)', 'rgba(0, 0, 0, 0.993)', 'rgba(0, 0, 0, 1)'],
-  ['rgba(255, 105, 180, 0.9)', 'rgba(150, 0, 80, 0.6)', 'rgba(15, 0, 7, 0.7)', 'rgba(0, 0, 0, 0.92)', 'rgba(0, 0, 0, 0.97)', 'rgba(0, 0, 0, 0.993)', 'rgba(0, 0, 0, 1)'],
-  ['rgba(255, 215, 0, 0.9)', 'rgba(150, 100, 0, 0.6)', 'rgba(15, 10, 0, 0.7)', 'rgba(0, 0, 0, 0.92)', 'rgba(0, 0, 0, 0.97)', 'rgba(0, 0, 0, 0.993)', 'rgba(0, 0, 0, 1)'],
-  ['rgba(255, 69, 96, 0.9)', 'rgba(150, 20, 40, 0.6)', 'rgba(15, 2, 5, 0.7)', 'rgba(0, 0, 0, 0.92)', 'rgba(0, 0, 0, 0.97)', 'rgba(0, 0, 0, 0.993)', 'rgba(0, 0, 0, 1)'],
-  ['rgba(99, 102, 241, 0.9)', 'rgba(55, 48, 163, 0.6)', 'rgba(7, 6, 18, 0.7)', 'rgba(0, 0, 0, 0.92)', 'rgba(0, 0, 0, 0.97)', 'rgba(0, 0, 0, 0.993)', 'rgba(0, 0, 0, 1)'],
-] as const;
+function ImageGradientOverlay({ height = 500, echoId, imageUrl, scrollY = 0 }: Props) {
+  const insets = useSafeAreaInsets();
+  const translateY = useRef(new Animated.Value(0)).current;
+  
+  // Extract colors from the cover image
+  const { colors: extractedColors } = useImageColors(imageUrl);
 
-function ImageGradientOverlay({ height = 500, echoId }: Props) {
-  const gradientColors = useMemo(() => {
-    if (!echoId) return [...GRADIENT_PRESETS[0]] as [ColorValue, ColorValue, ...ColorValue[]];
+  const gradientConfig = useMemo(() => {
+    // If we have extracted colors, create a personalized gradient
+    if (extractedColors) {
+      return createGradientFromColors(extractedColors);
+    }
     
-    const hash = echoId.split('').reduce((acc, char) => {
-      return acc + char.charCodeAt(0);
-    }, 0);
+    // Fallback to preset gradient based on echoId
+    return getFallbackGradient(echoId);
+  }, [extractedColors, echoId]);
+
+  // Animate gradient position based on scroll
+  useEffect(() => {
+    // Calculate how much to translate the gradient up
+    // As user scrolls down, gradient moves up (negative translateY)
+    // We want it to eventually be positioned only in the header area
+    const headerHeight = insets.top + 44; // Safe area + header height
+    // The gradient should move up by the scroll amount, but stop when only header is visible
+    // This means when scrollY reaches (height - headerHeight), gradient is fully in header
+    const maxScroll = Math.max(0, height - headerHeight);
     
-    const index = hash % GRADIENT_PRESETS.length;
-    return [...GRADIENT_PRESETS[index]] as [ColorValue, ColorValue, ...ColorValue[]];
-  }, [echoId]);
+    // Clamp scroll value and calculate translateY
+    // Negative translateY moves the gradient up
+    const clampedScroll = Math.max(0, Math.min(scrollY, maxScroll));
+    const translateValue = -clampedScroll;
+    
+    // Use setValue for instant updates during scroll (smoother than timing with duration 0)
+    translateY.setValue(translateValue);
+  }, [scrollY, height, insets.top, translateY]);
 
   return (
-    <LinearGradient
-      colors={gradientColors}
-      locations={[0, 0.2, 0.5, 0.75, 0.9, 0.97, 1]}
-      style={[styles.gradient, { height }]}
+    <Animated.View
+      style={[
+        styles.container,
+        {
+          height,
+          transform: [{ translateY }],
+        },
+      ]}
       pointerEvents="none"
-    />
+    >
+      <LinearGradient
+        colors={gradientConfig.colors as ColorValue[]}
+        locations={gradientConfig.locations}
+        style={[styles.gradient, { height }]}
+      />
+    </Animated.View>
   );
 }
 
 export default ImageGradientOverlay;
 
 const styles = StyleSheet.create({
-  gradient: {
+  container: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     zIndex: -1,
+    overflow: "hidden",
+  },
+  gradient: {
+    width: "100%",
+    height: "100%",
   },
 });
 

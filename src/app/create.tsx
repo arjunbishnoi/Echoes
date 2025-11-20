@@ -1,3 +1,4 @@
+import { useToast } from "@/contexts/ToastContext";
 import { KEYBOARD_ANIMATION } from "@/constants/animations";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { colors, radii, sizes, spacing } from "@/theme/theme";
@@ -32,6 +33,7 @@ export default function CreateEchoScreen() {
   const router = useRouter();
   const { createEcho } = useEchoStorage();
   const { isPrivate, collaboratorIds, lockDate, unlockDate } = useEchoDraft();
+  const { showToast } = useToast();
 
   const hasName = echoName.trim().length > 0;
 
@@ -85,21 +87,19 @@ export default function CreateEchoScreen() {
         ...(unlockDate && { unlockDate: unlockDate.toISOString() }),
       });
       
-      Alert.alert("Echo Created!", `"${echoName}" has been created successfully.`, [
-        {
-          text: "OK",
-          onPress: () => {
-            // Navigate to the new echo and dismiss the modal
-            router.dismissAll();
-            router.push({ pathname: "/(main)/echo/[id]", params: { id: newEcho.id } });
-          },
-        },
-      ]);
+      // Show toast notification
+      showToast(`"${echoName}" has been created successfully`, "checkmark-circle", 3000);
+      
+      // Navigate to the new echo after a short delay
+      setTimeout(() => {
+        router.dismissAll();
+        router.push({ pathname: "/(main)/echo/[id]", params: { id: newEcho.id } });
+      }, 500);
     } catch (error) {
       console.error("Failed to create echo:", error);
       Alert.alert("Error", "Failed to create echo. Please try again.");
     }
-  }, [hasName, echoName, coverImageUri, isPrivate, collaboratorIds, lockDate, unlockDate, createEcho, router]);
+  }, [hasName, echoName, coverImageUri, isPrivate, collaboratorIds, lockDate, unlockDate, createEcho, router, showToast]);
 
   useEffect(() => {
     const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
