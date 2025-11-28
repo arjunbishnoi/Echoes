@@ -7,25 +7,27 @@ import PlusToSideStrip from "@/components/PlusToSideStrip";
 import RightDrawerContent from "@/components/RightDrawerContent";
 import { RightDrawerProgressProvider } from "@/components/RightDrawerProgress";
 import SideStripCreateProxy from "@/components/SideStripCreateProxy";
+import { SkeletonTimeCapsuleCard } from "@/components/SkeletonTimeCapsuleCard";
 import TimeCapsuleCard from "@/components/TimeCapsuleCard";
 import EmptyState from "@/components/ui/EmptyState";
-import LoadingSpinner from "@/components/ui/LoadingSpinner";
 import { GestureConfig } from "@/config/ui";
 import { HERO_HEIGHT } from "@/constants/dimensions";
-import { dummyFriends } from "@/data/dummyFriends";
 import { useEchoContextMenu } from "@/hooks/useEchoContextMenu";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { useFavoriteEchoes } from "@/hooks/useFavoriteEchoes";
 import { usePinnedEchoes } from "@/hooks/usePinnedEchoes";
 import { useRefresh } from "@/hooks/useRefresh";
-import { colors, spacing } from "@/theme/theme";
+import { useUserProfiles } from "@/hooks/useUserProfiles";
+import { colors, sizes, spacing } from "@/theme/theme";
 import type { Echo } from "@/types/echo";
+import { useAuth } from "@/utils/authContext";
 import { computeEchoProgressPercent } from "@/utils/echoes";
 import { sortEchoesForHome } from "@/utils/echoSorting";
+import { useFriends } from "@/utils/friendContext";
 import { useHomeEchoContext } from "@/utils/homeEchoContext";
 import { useRouter, type Href } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
-import { Alert, FlatList, RefreshControl, StyleSheet, useWindowDimensions, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, FlatList, Image, RefreshControl, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Drawer, useDrawerProgress } from "react-native-drawer-layout";
 import { runOnJS, useAnimatedReaction } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,34 +48,94 @@ export function Home() {
   const rightSwipeWidth = Math.max(0, halfWidth - 1);
 
   const { echoes, isLoading } = useEchoStorage();
+  
+  // Prefetch top echoes images
+  useEffect(() => {
+    if (echoes.length > 0) {
+      const topEchoes = sortEchoesForHome(filterVisibleEchoes(echoes), isPinned).slice(0, 10);
+      topEchoes.forEach(echo => {
+        if (echo.imageUrl) {
+          // @ts-ignore
+          Image.prefetch(echo.imageUrl);
+        }
+        
+        // Prefetch owner avatar
+        const ownerAvatar = echo.ownerPhotoURL || friendsById[echo.ownerId]?.photoURL;
+        if (ownerAvatar) {
+          // @ts-ignore
+          Image.prefetch(ownerAvatar);
+        }
+      });
+    }
+  }, [echoes, filterVisibleEchoes, isPinned, friendsById]);
+
   const { isPinned, togglePin } = usePinnedEchoes();
   const { isFavorite } = useFavoriteEchoes();
   const { removeFromHome, filterVisibleEchoes } = useHomeEchoContext();
   const { showContextMenu } = useEchoContextMenu();
+
+  const { friendsById } = useFriends();
+  const { user } = useAuth();
 
   const homeEchoes = useMemo(() => {
     const visibleOnHome = filterVisibleEchoes(echoes);
     return sortEchoesForHome(visibleOnHome, isPinned);
   }, [echoes, filterVisibleEchoes, isPinned]);
 
-  const getAvatarUrls = useCallback((echo: Echo): string[] => {
-    const avatars: string[] = [];
-    
-    if (echo.ownerPhotoURL) {
-      avatars.push(echo.ownerPhotoURL);
-    }
-    
-    if (echo.collaboratorIds && echo.collaboratorIds.length > 0) {
-      echo.collaboratorIds.forEach((collaboratorId) => {
-        const friend = dummyFriends.find((f) => f.id === collaboratorId);
-        if (friend?.photoURL) {
-          avatars.push(friend.photoURL);
-        }
+  const collaboratorProfileIds = useMemo(() => {
+    const ids = new Set<string>();
+    homeEchoes.forEach((echo) => {
+      if (echo.ownerId) ids.add(echo.ownerId);
+      echo.collaboratorIds?.forEach((id) => {
+        if (id) ids.add(id);
       });
+    });
+    return Array.from(ids);
+  }, [homeEchoes]);
+
+  const collaboratorProfiles = useUserProfiles(collaboratorProfileIds);
+
+  const getParticipants = useCallback((echo: Echo) => {
+    const participants: { avatar: string; id?: string }[] = [];
+    const seenIds = new Set<string>();
+
+    if (echo.ownerId) {
+      let ownerAvatar =
+        echo.ownerPhotoURL ||
+        friendsById[echo.ownerId]?.photoURL ||
+        collaboratorProfiles[echo.ownerId]?.photoURL;
+      
+      // Fallback to current user if owner is me
+      if (!ownerAvatar && user && echo.ownerId === user.id) {
+        ownerAvatar = user.photoURL;
+      }
+
+      if (ownerAvatar) {
+        participants.push({ avatar: ownerAvatar, id: echo.ownerId });
+        seenIds.add(echo.ownerId);
+      }
     }
-    
-    return avatars;
-  }, []);
+
+    echo.collaboratorIds?.forEach((collaboratorId) => {
+      if (seenIds.has(collaboratorId)) return;
+      
+      let friendAvatar =
+        friendsById[collaboratorId]?.photoURL ||
+        collaboratorProfiles[collaboratorId]?.photoURL;
+      
+      // If the collaborator is the current user, use their avatar
+      if (!friendAvatar && user && collaboratorId === user.id) {
+        friendAvatar = user.photoURL;
+      }
+
+      if (friendAvatar) {
+        participants.push({ avatar: friendAvatar, id: collaboratorId });
+        seenIds.add(collaboratorId);
+      }
+    });
+
+    return participants;
+  }, [friendsById, user, collaboratorProfiles]);
 
   const handleLongPress = useCallback(
     (item: Echo) => {
@@ -116,7 +178,7 @@ export function Home() {
         title={item.title}
         imageUrl={item.imageUrl}
         progress={computeEchoProgressPercent(item)}
-        participants={getAvatarUrls(item)}
+        participants={getParticipants(item)}
         isPrivate={item.isPrivate}
         isPinned={isPinned(item.id)}
         isFavorite={isFavorite(item.id)}
@@ -129,7 +191,7 @@ export function Home() {
         onLongPress={leftOpen || rightOpen || drawerInteracting ? undefined : () => handleLongPress(item)}
       />
     ),
-    [router, leftOpen, rightOpen, drawerInteracting, isPinned, isFavorite, handleLongPress, getAvatarUrls]
+    [router, leftOpen, rightOpen, drawerInteracting, isPinned, isFavorite, handleLongPress, getParticipants]
   );
 
   const keyExtractor = useCallback((item: Echo) => item.id, []);
@@ -175,7 +237,14 @@ export function Home() {
               <DrawerProgressWatcher onActiveChange={setLeftInteracting} />
               <SafeAreaView style={styles.container} edges={["top"]}>
                 {isLoading ? (
-                  <LoadingSpinner message="Loading echoes..." />
+                  <View style={[styles.listContent, { paddingTop: spacing.lg }]}>
+                    {[1, 2, 3].map((i) => (
+                      <SkeletonTimeCapsuleCard 
+                        key={i} 
+                        style={{ marginBottom: sizes.list.itemSpacing }} 
+                      />
+                    ))}
+                  </View>
                 ) : homeEchoes.length === 0 ? (
                   <EmptyState
                     icon="calendar-outline"

@@ -1,9 +1,9 @@
+import { MediaThumbnailImage } from "@/components/MediaThumbnailImage";
 import { colors, spacing } from "@/theme/theme";
 import type { EchoMedia } from "@/types/echo";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { Image as ExpoImage } from "expo-image";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Dimensions, FlatList, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Dimensions, FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,10 +19,27 @@ interface MediaGalleryViewerProps {
   media: EchoMedia[];
   initialIndex: number;
   onClose: () => void;
-  onDelete?: (index: number) => void;
 }
 
-export default function MediaGalleryViewer({ visible, media, initialIndex, onClose, onDelete }: MediaGalleryViewerProps) {
+const ThumbnailItem = memo(({ item, index, isActive, onPress }: { item: EchoMedia; index: number; isActive: boolean; onPress: (index: number) => void }) => {
+  return (
+    <Pressable
+      onPress={() => onPress(index)}
+      style={[styles.thumbnail, isActive && styles.thumbnailActive]}
+    >
+      <MediaThumbnailImage
+        uri={item.thumbnailUri}
+        fallbackUri={item.uri}
+        style={styles.thumbnailImage}
+        contentFit="cover"
+      />
+    </Pressable>
+  );
+}, (prev, next) => {
+  return prev.isActive === next.isActive && prev.item.id === next.item.id && prev.index === next.index;
+});
+
+export default function MediaGalleryViewer({ visible, media, initialIndex, onClose }: MediaGalleryViewerProps) {
   const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -62,13 +79,6 @@ export default function MediaGalleryViewer({ visible, media, initialIndex, onClo
     setControlsVisible((prev) => !prev);
   }, []);
 
-  const handleDelete = useCallback(() => {
-    if (onDelete) {
-      onDelete(currentIndex);
-      onClose();
-    }
-  }, [onDelete, currentIndex, onClose]);
-
   const renderMainItem = useCallback(({ item }: { item: EchoMedia }) => {
     return <ZoomableImage uri={item.uri} onTap={toggleControls} onDismiss={onClose} />;
   }, [toggleControls, onClose]);
@@ -76,28 +86,14 @@ export default function MediaGalleryViewer({ visible, media, initialIndex, onClo
   const renderThumbnail = useCallback(({ item, index }: { item: EchoMedia; index: number }) => {
     const isActive = index === currentIndex;
     return (
-      <Pressable
-        onPress={() => handleThumbnailPress(index)}
-        style={[styles.thumbnail, isActive && styles.thumbnailActive]}
-      >
-        <Image source={{ uri: item.thumbnailUri || item.uri }} style={styles.thumbnailImage} resizeMode="cover" />
-        {isActive && onDelete && (
-          <Pressable
-            onPress={(e) => {
-              e.stopPropagation();
-              handleDelete();
-            }}
-            style={styles.thumbnailDeleteButton}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Delete media"
-          >
-            <Ionicons name="trash" size={20} color={colors.white} />
-          </Pressable>
-        )}
-      </Pressable>
+      <ThumbnailItem
+        item={item}
+        index={index}
+        isActive={isActive}
+        onPress={handleThumbnailPress}
+      />
     );
-  }, [currentIndex, handleThumbnailPress, onDelete, handleDelete]);
+  }, [currentIndex, handleThumbnailPress]);
 
   if (!visible || media.length === 0) return null;
 

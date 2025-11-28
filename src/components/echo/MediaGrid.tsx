@@ -1,7 +1,8 @@
+import { MediaThumbnailImage } from "@/components/MediaThumbnailImage";
 import { SCREEN_WIDTH } from "@/constants/dimensions";
 import { colors, spacing } from "@/theme/theme";
 import type { EchoMedia } from "@/types/echo";
-import { Image, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import EmptyState from "../ui/EmptyState";
 
 const GRID_HORIZONTAL_MARGIN = spacing.lg;
@@ -39,10 +40,11 @@ export default function MediaGrid({ media = [], onMediaPress }: MediaGridProps) 
               onPress={() => onMediaPress?.(item)}
             >
               <View style={styles.placeholder}>
-                <Image
-                  source={{ uri: item.thumbnailUri || item.uri }}
+                <MediaThumbnailImage
+                  uri={item.thumbnailUri}
+                  fallbackUri={item.uri}
                   style={styles.image}
-                  resizeMode="cover"
+                  contentFit="cover"
                 />
               </View>
             </Pressable>

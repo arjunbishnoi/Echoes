@@ -1,18 +1,21 @@
 import { UnifiedFormSection } from "@/components/forms/UnifiedForm";
 import { UnifiedFormRow } from "@/components/forms/UnifiedFormRow";
-import { FormSection } from "@/components/IOSForm";
 import { HERO_HEIGHT, HERO_IMAGE_MARGIN_TOP } from "@/constants/dimensions";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { colors, radii, spacing } from "@/theme/theme";
+import { Storage } from "@/utils/asyncStorage";
+import { useAuth } from "@/utils/authContext";
 import { useFriends } from "@/utils/friendContext";
 import { COVER_IMAGE_ASPECT_RATIO, ensureCoverImageAspectRatio } from "@/utils/image";
+import { EchoService } from "@/utils/services/echoService";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { BlurView } from "expo-blur";
+import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActionSheetIOS, Alert, Image, ImageBackground, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from "react-native";
+import { ActionSheetIOS, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View } from "react-native";
 
 const AVATAR_SIZE = 56;
 const COVER_ASPECT_RATIO = COVER_IMAGE_ASPECT_RATIO;
@@ -21,11 +24,34 @@ export default function EditEchoScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
   const { getEchoById, updateEcho, deleteEcho } = useEchoStorage();
+  const { user } = useAuth();
 
   const echo = useMemo(() => {
     if (!id) return undefined;
     return getEchoById(String(id));
   }, [id, getEchoById]);
+
+  // Prevent editing locked echoes or non-owner access
+  useEffect(() => {
+    if (!echo || !user) return;
+
+    if (echo.status === "locked") {
+      Alert.alert(
+        "Echo is Locked",
+        "This echo has been locked and cannot be edited.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
+      return;
+    }
+
+    if (echo.ownerId && echo.ownerId !== user.id) {
+      Alert.alert(
+        "Cannot Edit",
+        "Only the echo owner can edit this echo.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
+    }
+  }, [echo, user?.id, router]);
 
   const [title, setTitle] = useState(echo?.title || "");
   const [imageUrl, setImageUrl] = useState(echo?.imageUrl || "");
@@ -36,7 +62,63 @@ export default function EditEchoScreen() {
   const [showLockPicker, setShowLockPicker] = useState(false);
   const [showUnlockPicker, setShowUnlockPicker] = useState(false);
 
+  // Handle updated collaborators from the edit-collaborators modal
+  useFocusEffect(
+    useCallback(() => {
+      const checkForUpdatedCollaborators = async () => {
+        if (!id) return;
+        const storageKey = `temp_collaborators_${id}`;
+        const updatedIds = await Storage.get<string[]>(storageKey);
+        if (updatedIds) {
+          setCollaboratorIds(updatedIds);
+          // Clear the temporary storage
+          await Storage.remove(storageKey);
+        }
+      };
+      checkForUpdatedCollaborators();
+    }, [id])
+  );
+
+  // Ensure collaboratorIds are initialized from the echo once it loads
+  useEffect(() => {
+    if (echo && Array.isArray(echo.collaboratorIds) && echo.collaboratorIds.length > 0 && collaboratorIds.length === 0) {
+      setCollaboratorIds(echo.collaboratorIds);
+    }
+  }, [echo, collaboratorIds.length]);
+
+  // Extra safety: fetch echo from Firestore to ensure we have collaboratorIds
+  useEffect(() => {
+    if (!id) return;
+    if (collaboratorIds.length > 0) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const remoteEcho = await EchoService.getEcho(String(id));
+        if (!cancelled && remoteEcho?.collaboratorIds && remoteEcho.collaboratorIds.length > 0) {
+          setCollaboratorIds(remoteEcho.collaboratorIds);
+        }
+      } catch (error) {
+        if (__DEV__) {
+          console.warn("[EditEcho] Failed to fetch remote echo for collaborators", error);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, collaboratorIds.length]);
+
+  // Fallback: if local state is empty, fall back to echo.collaboratorIds for display / passing to modal
+  const effectiveCollaboratorIds = useMemo(
+    () => (collaboratorIds.length > 0 ? collaboratorIds : echo?.collaboratorIds || []),
+    [collaboratorIds, echo?.collaboratorIds]
+  );
+
   const isCollaborativeEcho = echo?.shareMode === "shared";
+  const isLocked = echo?.status === "locked";
+  const isOwner = echo?.ownerId && user?.id ? echo.ownerId === user.id : false;
 
   // Store original values to detect changes
   const originalValuesRef = useRef({
@@ -323,6 +405,10 @@ export default function EditEchoScreen() {
     );
   }
 
+  if (isLocked || (echo.ownerId && user && echo.ownerId !== user.id)) {
+    return null; // Will redirect back via useEffect
+  }
+
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -367,14 +453,7 @@ export default function EditEchoScreen() {
         </View>
 
         <View style={styles.formContainer}>
-        {isCollaborativeEcho ? (
-          <View style={styles.infoBanner}>
-            <Ionicons name="people" size={16} color={colors.white} />
-            <Text style={styles.infoBannerText}>
-              This echo is collaborative and cannot be made private again.
-            </Text>
-          </View>
-        ) : (
+        {!isCollaborativeEcho && (
           <UnifiedFormSection style={styles.sectionSpacing}>
             <UnifiedFormRow
               title="Private"
@@ -383,49 +462,6 @@ export default function EditEchoScreen() {
               onSwitchChange={setIsPrivate}
             />
           </UnifiedFormSection>
-        )}
-
-      {(isCollaborativeEcho || !isPrivate) && (
-        <FormSection title={isCollaborativeEcho ? "Collaborators" : "Choose Collaborators"}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.avatarsRow}
-          >
-            {collaboratorOptions.length === 0 ? (
-              <View style={styles.emptyCollaborators}>
-                <Text style={styles.emptyCollaboratorsText}>
-                  Add friends to invite collaborators.
-                </Text>
-              </View>
-            ) : (
-              collaboratorOptions.map((friend) => {
-              const selected = collaboratorIds.includes(friend.id);
-              return (
-                <Pressable
-                  key={friend.id}
-                  onPress={() => toggleCollaborator(friend.id)}
-                  style={[styles.avatarWrap, selected && styles.avatarWrapSelected]}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${selected ? "Remove" : "Add"} ${friend.name}`}
-                  >
-                    <ImageBackground
-                      source={friend.avatarUri ? { uri: friend.avatarUri } : undefined}
-                      style={[styles.avatarImage, !friend.avatarUri && styles.avatarFallback]}
-                      imageStyle={{ borderRadius: 100 }}
-                    >
-                    {selected && (
-                      <View style={styles.avatarSelectedBadge}>
-                        <Ionicons name="checkmark" size={14} color={colors.black} />
-                      </View>
-                    )}
-                    </ImageBackground>
-                  </Pressable>
-                );
-              })
-            )}
-          </ScrollView>
-        </FormSection>
       )}
 
       <UnifiedFormSection>
@@ -444,6 +480,70 @@ export default function EditEchoScreen() {
           showChevron
         />
       </UnifiedFormSection>
+
+      {(isCollaborativeEcho || !isPrivate || effectiveCollaboratorIds.length > 0) && (
+        <View style={styles.collaboratorsSection}>
+          <View style={styles.collaboratorsHeader}>
+            <Text style={styles.pillSectionTitle}>
+              {isCollaborativeEcho ? "Collaborators" : "Choose Collaborators"}
+            </Text>
+            {isOwner && (
+              <Pressable
+                onPress={() => {
+                  router.push({
+                    pathname: "/(main)/echo/[id]/edit-collaborators",
+                    params: {
+                      id: String(id),
+                      initialCollaborators: JSON.stringify(effectiveCollaboratorIds),
+                    },
+                  });
+                }}
+                style={styles.editPillButtonCollaborators}
+                accessibilityRole="button"
+                accessibilityLabel="Edit collaborators"
+                hitSlop={8}
+              >
+                <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+                <View style={styles.editPillOverlay} />
+                <View style={styles.editPillContent}>
+                  <Ionicons name="pencil" size={16} color={colors.white} />
+                  <Text style={styles.editPillText}>Edit</Text>
+                </View>
+              </Pressable>
+            )}
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.avatarsRow}
+            style={styles.avatarsScrollView}
+          >
+            {effectiveCollaboratorIds.length === 0 ? (
+              <View style={styles.emptyCollaborators}>
+                <Text style={styles.emptyCollaboratorsText}>
+                  {collaboratorOptions.length === 0 
+                    ? "Add friends to invite collaborators."
+                    : "No collaborators selected."}
+                </Text>
+              </View>
+            ) : (
+              collaboratorOptions
+                .filter((friend) => effectiveCollaboratorIds.includes(friend.id))
+                .map((friend) => (
+                  <View key={friend.id} style={styles.avatarWrap}>
+                    <Image
+                      source={friend.avatarUri ? { uri: friend.avatarUri } : `https://picsum.photos/seed/${friend.id}/200/200`}
+                      style={styles.avatarImage}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                      transition={200}
+                    />
+                  </View>
+                ))
+            )}
+          </ScrollView>
+        </View>
+      )}
 
       {Platform.OS === "ios" && showLockPicker && (
         <Modal transparent animationType="fade" visible={showLockPicker} onRequestClose={() => setShowLockPicker(false)}>
@@ -528,7 +628,7 @@ export default function EditEchoScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.modalSurface,
   },
   content: {
     paddingTop: 0,
@@ -604,24 +704,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
   },
-  infoBanner: {
-    flexDirection: "row",
+  editPillButtonCollaborators: {
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.12)",
+    overflow: "hidden",
     alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(0, 122, 255, 0.15)",
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.xl,
+    justifyContent: "center",
   },
   infoBannerText: {
-    color: colors.white,
-    fontSize: 14,
-    flex: 1,
+    color: colors.textSecondary,
+    fontSize: 15,
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: spacing.xl,
+    paddingHorizontal: spacing.lg,
   },
   formContainer: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
+  },
+  collaboratorsSection: {
+    marginTop: spacing.xl,
+    marginBottom: spacing.xl,
+  },
+  collaboratorsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.sm,
+  },
+  pillSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.textPrimary,
+    flex: 1,
   },
   sectionSpacing: {
     marginBottom: spacing.xl,
@@ -641,8 +760,12 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.surfaceBorder,
   },
+  avatarsScrollView: {
+    minHeight: AVATAR_SIZE + spacing.sm * 2,
+  },
   avatarsRow: {
     paddingVertical: spacing.sm,
+    paddingRight: spacing.lg,
   },
   emptyCollaborators: {
     paddingVertical: spacing.sm,
@@ -667,6 +790,7 @@ const styles = StyleSheet.create({
   avatarImage: {
     width: "100%",
     height: "100%",
+    borderRadius: AVATAR_SIZE / 2,
     backgroundColor: colors.surface,
   },
   avatarFallback: {

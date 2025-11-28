@@ -1,12 +1,21 @@
 import StatusBadge from "@/components/ui/StatusBadge";
 import { colors, radii, sizes } from "@/theme/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { BlurView } from "expo-blur";
+// Removed BlurView for performance in lists
+// import { BlurView } from "expo-blur";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { SymbolView } from "expo-symbols";
 import { memo } from "react";
-import { Image, ImageBackground, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import Animated from "react-native-reanimated";
+import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
+
+const AnimatedImage = Animated.createAnimatedComponent(Image);
+
+type Participant = {
+  avatar: string;
+  id?: string;
+};
 
 type Props = {
   id: string;
@@ -17,7 +26,7 @@ type Props = {
   onLongPress?: () => void;
   progress?: number;
   remainingLabel?: string;
-  participants?: string[];
+  participants?: Participant[];
   isPinned?: boolean;
   status?: "ongoing" | "locked" | "unlocked";
   isPrivate?: boolean;
@@ -50,7 +59,6 @@ function TimeCapsuleCardInner({ title, style, imageUrl, id, onPress, onLongPress
           <View style={styles.badgeRow}>
             {isFavorite && (
               <View style={styles.favoriteBadge}>
-                <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
                 <View style={styles.favoriteBadgeOverlay} />
                 <View style={styles.favoriteBadgeContent}>
                   <Ionicons name="heart" size={14} color={colors.white} style={styles.iconOpacity} />
@@ -59,7 +67,6 @@ function TimeCapsuleCardInner({ title, style, imageUrl, id, onPress, onLongPress
             )}
             {isPinned && (
               <View style={[styles.pinBadge, isFavorite && styles.pinBadgeOffset]}>
-                <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
                 <View style={styles.pinBadgeOverlay} />
                 <View style={styles.pinBadgeContent}>
                   {Platform.OS === "ios" ? (
@@ -78,61 +85,68 @@ function TimeCapsuleCardInner({ title, style, imageUrl, id, onPress, onLongPress
             )}
           </View>
         )}
-        <ImageBackground
-        source={imageUrl ? { uri: imageUrl } : undefined}
-        resizeMode="cover"
-        style={styles.image}
-      >
-        <View style={styles.spacer} />
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
-          locations={[0, 0.3, 0.6, 1]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0, y: 1 }}
-          style={styles.bottomGradient}
-        />
-        <View style={styles.blurContainer}>
-          <View style={styles.textContainer}>
-            <Text style={styles.title}>{title}</Text>
-            <View style={styles.metaRow}>
-              {!isPrivate && participants && participants.length > 0 ? (
-                <View style={styles.avatarsStack}>
-                  {participants.slice(0, 5).map((uri, idx, arr) => (
-                    <Image
-                      key={`${id}-p-${idx}`}
-                      source={{ uri }}
-                      style={[
-                        styles.avatarStacked,
-                        idx > 0 ? { marginLeft: -AVATAR_SIZE * 0.4 } : null,
-                        { zIndex: arr.length - idx },
-                      ]}
-                    />
-                  ))}
-                </View>
-              ) : isPrivate ? (
-                <View style={styles.privateBadge}>
-                  <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-                  <View style={styles.privateBadgeOverlay} />
-                  <View style={styles.privateBadgeContent}>
-                    <Text style={styles.privateBadgeText}>Private</Text>
+        <View style={styles.imageContainer}>
+          <AnimatedImage 
+            source={imageUrl ? { uri: imageUrl } : undefined}
+            style={[StyleSheet.absoluteFillObject]} 
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={200}
+            entering={FadeIn.duration(400)}
+          />
+          
+          <View style={styles.overlayContent}>
+            <View style={styles.spacer} />
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
+              locations={[0, 0.3, 0.6, 1]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={styles.bottomGradient}
+            />
+            <View style={styles.blurContainer}>
+              <View style={styles.textContainer}>
+                <Text style={styles.title}>{title}</Text>
+                <View style={styles.metaRow}>
+                  {!isPrivate && participants && participants.length > 0 ? (
+                    <View style={styles.avatarsStack}>
+                      {participants.slice(0, 5).map((participant, idx, arr) => (
+                        <Image
+                          key={`${id}-p-${participant.id ?? idx}`}
+                          source={{ uri: participant.avatar }}
+                          style={[
+                            styles.avatarStacked,
+                            idx > 0 ? { marginLeft: -AVATAR_SIZE * 0.4 } : null,
+                            { zIndex: arr.length - idx },
+                          ]}
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
+                        />
+                      ))}
+                    </View>
+                  ) : isPrivate ? (
+                    <View style={styles.privateBadge}>
+                      <View style={styles.privateBadgeOverlay} />
+                      <View style={styles.privateBadgeContent}>
+                        <Text style={styles.privateBadgeText}>Private</Text>
+                      </View>
+                    </View>
+                  ) : null}
+                  <View style={[styles.progressWrapper, isPrivate || !participants || participants.length === 0 ? styles.progressWrapperPrivate : null]}>
+                    {remainingLabel ? (
+                      <Text style={styles.remainingText} numberOfLines={1}>{remainingLabel}</Text>
+                    ) : null}
+                    <View style={styles.progressTrack}>
+                      <View style={styles.progressTrackOverlay} />
+                      <View style={[styles.progressBar, { width: `${Math.max(0, Math.min(1, progress)) * 100}%` }]} />
+                    </View>
                   </View>
-                </View>
-              ) : null}
-              <View style={[styles.progressWrapper, isPrivate || !participants || participants.length === 0 ? styles.progressWrapperPrivate : null]}>
-                {remainingLabel ? (
-                  <Text style={styles.remainingText} numberOfLines={1}>{remainingLabel}</Text>
-                ) : null}
-                <View style={styles.progressTrack}>
-                  <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-                  <View style={styles.progressTrackOverlay} />
-                  <View style={[styles.progressBar, { width: `${Math.max(0, Math.min(1, progress)) * 100}%` }]} />
+                  <StatusBadge status={status} size={28} iconOnly={true} style={styles.statusCircle} />
                 </View>
               </View>
-              <StatusBadge status={status} size={28} iconOnly={true} style={styles.statusCircle} />
             </View>
           </View>
         </View>
-        </ImageBackground>
       </Animated.View>
     </Pressable>
   );
@@ -168,7 +182,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.12)",
+    backgroundColor: "rgba(0,0,0,0.4)",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -179,7 +193,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: colors.lightOverlay,
+    backgroundColor: "transparent",
   },
   favoriteBadgeContent: {
     alignItems: "center",
@@ -189,7 +203,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.12)",
+    backgroundColor: "rgba(0,0,0,0.4)",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -200,11 +214,20 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: colors.lightOverlay,
+    backgroundColor: "transparent",
   },
   pinBadgeContent: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  imageContainer: {
+    width: "100%",
+    flex: 1,
+    position: 'relative',
+  },
+  overlayContent: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
   },
   image: {
     width: "100%",
@@ -254,7 +277,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
     overflow: "hidden",
-    backgroundColor: "rgba(0,0,0,0.12)",
+    backgroundColor: "rgba(0,0,0,0.4)",
   },
   privateBadgeContent: {
     flexDirection: "row",
@@ -266,7 +289,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: colors.lightOverlay,
+    backgroundColor: "transparent",
   },
   privateBadgeText: {
     color: "rgb(213, 213, 213)",
@@ -299,7 +322,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: AVATAR_SIZE / 2 - TRACK_HEIGHT / 2,
     height: TRACK_HEIGHT,
-    backgroundColor: "rgba(0,0,0,0.12)",
+    backgroundColor: "rgba(0,0,0,0.4)",
     borderRadius: 4,
     overflow: "hidden",
   },
@@ -309,7 +332,7 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    backgroundColor: colors.lightOverlay,
+    backgroundColor: "transparent",
   },
   progressBar: {
     height: TRACK_HEIGHT,

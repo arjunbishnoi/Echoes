@@ -1,6 +1,7 @@
 import { HERO_HEIGHT, HERO_IMAGE_MARGIN_TOP } from "@/constants/dimensions";
 import { spacing } from "@/theme/theme";
-import { Image, StyleSheet, View } from "react-native";
+import { Image } from "expo-image";
+import { StyleSheet, View } from "react-native";
 
 interface EchoHeroImageProps {
   imageUrl?: string;
@@ -10,11 +11,11 @@ function EchoHeroImage({ imageUrl }: EchoHeroImageProps) {
   return (
     <View style={styles.container}>
       <Image
-        key={imageUrl}
-        source={imageUrl ? { uri: imageUrl, cache: 'force-cache' } : undefined}
-        resizeMode="cover"
+        source={imageUrl}
         style={styles.image}
-        fadeDuration={0}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        transition={200}
       />
     </View>
   );

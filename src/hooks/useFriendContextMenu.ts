@@ -1,49 +1,60 @@
 import { ActionSheetIOS, Alert, Platform } from "react-native";
 
 interface FriendContextMenuOptions {
-  onEdit: () => void;
+  onEdit?: () => void;
   onRemove: () => void;
 }
 
 export function useFriendContextMenu() {
   const showContextMenu = ({ onEdit, onRemove }: FriendContextMenuOptions) => {
     if (Platform.OS === "ios") {
-      const options = ["Edit", "Remove Friend", "Cancel"];
+      const options = onEdit ? ["Edit", "Remove Friend", "Cancel"] : ["Remove Friend", "Cancel"];
+      const cancelButtonIndex = onEdit ? 2 : 1;
+      const destructiveButtonIndex = onEdit ? 1 : 0;
       
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options,
-          cancelButtonIndex: 2,
-          destructiveButtonIndex: 1, // "Remove Friend" is destructive
+          cancelButtonIndex,
+          destructiveButtonIndex, // "Remove Friend" is destructive
         },
         (buttonIndex) => {
-          if (buttonIndex === 0) {
+          if (onEdit && buttonIndex === 0) {
             onEdit();
-          } else if (buttonIndex === 1) {
+          } else if (onEdit && buttonIndex === 1) {
+            onRemove();
+          } else if (!onEdit && buttonIndex === 0) {
             onRemove();
           }
         }
       );
     } else {
       // Android
-      Alert.alert(
-        "Friend Options",
-        "",
-        [
-          {
+      const buttons = [];
+      
+      if (onEdit) {
+        buttons.push({
             text: "Edit",
             onPress: onEdit,
-          },
+        });
+      }
+      
+      buttons.push(
           {
             text: "Remove Friend",
             onPress: onRemove,
-            style: "destructive",
+          style: "destructive" as const,
           },
           {
             text: "Cancel",
-            style: "cancel",
-          },
-        ],
+          style: "cancel" as const,
+        }
+      );
+      
+      Alert.alert(
+        "Friend Options",
+        "",
+        buttons,
         { cancelable: true }
       );
     }

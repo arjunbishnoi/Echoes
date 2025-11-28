@@ -1,11 +1,13 @@
 import { db } from "@/config/firebase.config";
-import type { FriendRequest, Friendship, User, UserProfile } from "@/types/user";
+import type { FriendCodeLookupResult, FriendRequest, Friendship, User, UserProfile } from "@/types/user";
+import { generateFriendCode } from "@/utils/friendCode";
 import {
   arrayUnion,
   collection,
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   setDoc,
   updateDoc,
@@ -18,6 +20,15 @@ export class UserService {
   private static readonly FRIEND_REQUESTS_COLLECTION = "friendRequests";
   private static readonly FRIENDSHIPS_COLLECTION = "friendships";
 
+  // Cache user data to AsyncStorage for offline access
+  private static async cacheUserData(user: User): Promise<void> {
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.setItem(`user_${user.id}`, JSON.stringify(user));
+    } catch {
+    }
+  }
+
   static async getUser(userId: string): Promise<User | null> {
     try {
       const userRef = doc(db, this.USERS_COLLECTION, userId);
@@ -27,31 +38,124 @@ export class UserService {
         return null;
       }
       
-      return userSnap.data() as User;
+      const user = userSnap.data() as User;
+      if (!user.friendCode) {
+        user.friendCode = generateFriendCode(userId);
+        try {
+          await setDoc(doc(db, this.USERS_COLLECTION, userId), { friendCode: user.friendCode }, { merge: true });
+        } catch {
+          // Ignore backfill failures
+        }
+      }
+      
+      // Cache the user data for offline access
+      await this.cacheUserData(user);
+      
+      return user;
     } catch (error) {
-      console.error("Error getting user:", error);
       return null;
     }
   }
 
-  static async updateUser(userId: string, data: Partial<User>): Promise<User> {
+  static async getUserByFriendCode(friendCode: string): Promise<User | null> {
+    try {
+      const normalizedCode = friendCode.trim().toUpperCase();
+      if (!normalizedCode) {
+        return null;
+      }
+      const usersRef = collection(db, this.USERS_COLLECTION);
+      const q = query(usersRef, where("friendCode", "==", normalizedCode));
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        return null;
+      }
+
+      const user = snapshot.docs[0].data() as User;
+      user.friendCode = user.friendCode ?? normalizedCode;
+      await this.cacheUserData(user);
+      return user;
+    } catch {
+      return null;
+    }
+  }
+
+  static async resolveFriendCode(friendCode: string): Promise<FriendCodeLookupResult | null> {
+    const user = await this.getUserByFriendCode(friendCode);
+    if (!user) {
+      return null;
+    }
+
+    return {
+      id: user.id,
+      displayName: user.displayName || user.username || user.email,
+      username: user.username ?? undefined,
+    };
+  }
+
+  static async updateUser(userId: string, data: Partial<User>, retryCount = 0): Promise<User> {
+    const maxRetries = 3;
+    
     try {
       const userRef = doc(db, this.USERS_COLLECTION, userId);
+      
       const updateData = {
         ...data,
         updatedAt: new Date().toISOString(),
       };
       
-      await updateDoc(userRef, updateData);
+      await setDoc(userRef, updateData, { merge: true });
       
-      const updatedUser = await this.getUser(userId);
-      if (!updatedUser) {
-        throw new Error("User not found after update");
+      // Instead of fetching from Firestore (which might fail), construct the updated user
+      // We'll try to get the existing user data first, but fall back to basic data if it fails
+      let existingUser: User | null = null;
+      try {
+        existingUser = await this.getUser(userId);
+      } catch {
       }
       
+      // Construct the updated user from existing data + new data
+      const updatedUser: User = {
+        id: userId,
+        email: existingUser?.email || "",
+        displayName: updateData.displayName ?? existingUser?.displayName ?? "",
+        photoURL: updateData.photoURL ?? existingUser?.photoURL,
+        username: updateData.username ?? existingUser?.username,
+        bio: updateData.bio ?? existingUser?.bio,
+        friendCode: existingUser?.friendCode ?? updateData.friendCode ?? generateFriendCode(userId),
+        createdAt: existingUser?.createdAt || new Date().toISOString(),
+        updatedAt: updateData.updatedAt,
+        profileCompleted: updateData.profileCompleted ?? existingUser?.profileCompleted ?? false,
+        friendIds: existingUser?.friendIds || [],
+        blockedUserIds: existingUser?.blockedUserIds || [],
+        settings: existingUser?.settings || {
+          notifications: {
+            pushEnabled: true,
+            emailEnabled: true,
+            friendRequests: true,
+            echoUpdates: true,
+            echoUnlocks: true,
+          },
+          privacy: {
+            profileVisibility: "friends",
+            allowFriendRequests: true,
+          },
+          theme: "dark",
+        },
+      };
+      
+      // Cache the updated user data
+      await this.cacheUserData(updatedUser);
+      
       return updatedUser;
-    } catch (error) {
-      console.error("Error updating user:", error);
+    } catch (error: any) {
+      
+      // Check if it's a Firestore "Target ID already exists" error and retry
+      if (error?.message?.includes("Target ID already exists") && retryCount < maxRetries) {
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return this.updateUser(userId, data, retryCount + 1);
+      }
+      
       throw new Error("Failed to update user");
     }
   }
@@ -68,8 +172,7 @@ export class UserService {
         photoURL: user.photoURL,
         bio: user.bio,
       };
-    } catch (error) {
-      console.error("Error getting user profile:", error);
+    } catch {
       return null;
     }
   }
@@ -100,9 +203,25 @@ export class UserService {
       });
       
       return profiles;
-    } catch (error) {
-      console.error("Error searching users:", error);
+    } catch {
       return [];
+    }
+  }
+
+  static async hasPendingFriendRequest(fromUserId: string, toUserId: string): Promise<boolean> {
+    try {
+      const requestsRef = collection(db, this.FRIEND_REQUESTS_COLLECTION);
+      const q = query(
+        requestsRef,
+        where("fromUserId", "==", fromUserId),
+        where("toUserId", "==", toUserId),
+        where("status", "==", "pending")
+      );
+      
+      const existingSnap = await getDocs(q);
+      return !existingSnap.empty;
+    } catch {
+      return false;
     }
   }
 
@@ -121,6 +240,8 @@ export class UserService {
         throw new Error("Friend request already sent");
       }
       
+      const fromProfile = await this.getUserProfile(fromUserId);
+
       const newRequest: FriendRequest = {
         id: doc(collection(db, this.FRIEND_REQUESTS_COLLECTION)).id,
         fromUserId,
@@ -128,14 +249,94 @@ export class UserService {
         status: "pending",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        fromDisplayName: fromProfile?.displayName,
+        fromUsername: fromProfile?.username,
+        fromPhotoURL: fromProfile?.photoURL,
       };
       
       await setDoc(doc(db, this.FRIEND_REQUESTS_COLLECTION, newRequest.id), newRequest);
       
       return newRequest;
-    } catch (error) {
-      console.error("Error sending friend request:", error);
+    } catch {
       throw new Error("Failed to send friend request");
+    }
+  }
+
+  static async sendFriendRequestByFriendCode(
+    fromUserId: string,
+    friendCode: string
+  ): Promise<{ request: FriendRequest; target: FriendCodeLookupResult }> {
+    const target = await this.resolveFriendCode(friendCode);
+    if (!target) {
+      throw new Error("No Echoes user found for that code.");
+    }
+    if (target.id === fromUserId) {
+      throw new Error("You can't send a friend request to yourself.");
+    }
+
+    const request = await this.sendFriendRequest(fromUserId, target.id);
+    return { request, target };
+  }
+
+  static subscribeToIncomingFriendRequests(
+    userId: string,
+    callback: (requests: FriendRequest[]) => void
+  ): () => void {
+    const requestsRef = collection(db, this.FRIEND_REQUESTS_COLLECTION);
+    const q = query(
+      requestsRef,
+      where("toUserId", "==", userId),
+      where("status", "==", "pending")
+    );
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const requests = snapshot.docs
+          .map((docSnap) => ({ ...(docSnap.data() as FriendRequest), id: docSnap.id }))
+          .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+        callback(requests);
+      },
+      (_error) => {
+        callback([]);
+      }
+    );
+  }
+
+  static subscribeToAcceptedFriendRequests(
+    userId: string,
+    callback: (requests: FriendRequest[]) => void
+  ): () => void {
+    const requestsRef = collection(db, this.FRIEND_REQUESTS_COLLECTION);
+    const q = query(
+      requestsRef,
+      where("fromUserId", "==", userId),
+      where("status", "==", "accepted")
+    );
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const requests = snapshot.docs
+          .map((docSnap) => ({ ...(docSnap.data() as FriendRequest), id: docSnap.id }))
+          .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+        callback(requests);
+      },
+      (_error) => {
+        callback([]);
+      }
+    );
+  }
+
+  static async declineFriendRequest(requestId: string): Promise<void> {
+    try {
+      const requestRef = doc(db, this.FRIEND_REQUESTS_COLLECTION, requestId);
+      await updateDoc(requestRef, {
+        status: "rejected",
+        updatedAt: new Date().toISOString(),
+      });
+    } catch {
+      throw new Error("Failed to decline friend request");
     }
   }
 
@@ -177,8 +378,7 @@ export class UserService {
       await batch.commit();
       
       return newFriendship;
-    } catch (error) {
-      console.error("Error accepting friend request:", error);
+    } catch {
       throw new Error("Failed to accept friend request");
     }
   }
@@ -209,10 +409,36 @@ export class UserService {
       }
       
       return profiles;
-    } catch (error) {
-      console.error("Error getting friends:", error);
+    } catch {
       return [];
     }
+  }
+
+  static async isUsernameAvailable(username: string, excludeUserId?: string): Promise<boolean> {
+    try {
+      const usersRef = collection(db, this.USERS_COLLECTION);
+      const q = query(usersRef, where("username", "==", username.toLowerCase()));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        return true;
+      }
+      
+      // If we're excluding a user ID (for updates), check if the username belongs to that user
+      if (excludeUserId) {
+        const existingUser = querySnapshot.docs[0]?.data() as User;
+        return existingUser?.id === excludeUserId;
+      }
+      
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  static needsProfileCompletion(user: User): boolean {
+    // A user needs profile completion if they haven't completed it yet or don't have a username
+    return !user.profileCompleted || !user.username || user.username.trim().length === 0;
   }
 }
 

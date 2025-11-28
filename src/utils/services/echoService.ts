@@ -1,21 +1,21 @@
-import {
-    arrayRemove,
-    arrayUnion,
-    collection,
-    deleteDoc,
-    doc,
-    getDoc,
-    getDocs,
-    onSnapshot,
-    orderBy,
-    query,
-    setDoc,
-    Unsubscribe,
-    updateDoc,
-    where
-} from "firebase/firestore";
 import { db } from "@/config/firebase.config";
 import type { Echo, EchoActivity, EchoFilter, EchoMedia } from "@/types/echo";
+import {
+  arrayRemove,
+  arrayUnion,
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  setDoc,
+  Unsubscribe,
+  updateDoc,
+  where
+} from "firebase/firestore";
 
 export class EchoService {
   private static readonly ECHOES_COLLECTION = "echoes";
@@ -45,8 +45,7 @@ export class EchoService {
       });
       
       return echoes;
-    } catch (error) {
-      console.error("Error getting user echoes:", error);
+    } catch {
       return [];
     }
   }
@@ -61,27 +60,40 @@ export class EchoService {
       }
       
       return { ...echoSnap.data(), id: echoSnap.id } as Echo;
-    } catch (error) {
-      console.error("Error getting echo:", error);
+    } catch {
       return null;
     }
   }
 
-  static async createEcho(data: Omit<Echo, "id">): Promise<Echo> {
+  static async createEcho(data: Echo | Omit<Echo, "id">): Promise<Echo> {
     try {
-      const echoId = doc(collection(db, this.ECHOES_COLLECTION)).id;
-      const newEcho: Echo = {
-        ...data,
+      const echoId = "id" in data ? data.id : doc(collection(db, this.ECHOES_COLLECTION)).id;
+      const createdAt = (data as Echo).createdAt ?? new Date().toISOString();
+      const updatedAt = (data as Echo).updatedAt ?? new Date().toISOString();
+
+      // IMPORTANT: Firestore does not allow undefined – coerce optional fields to null
+      const payload = {
         id: echoId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+        title: data.title ?? "Untitled Echo",
+        description: (data as Echo).description ?? null,
+        imageUrl: (data as Echo).imageUrl ?? null,
+        status: (data as Echo).status ?? "ongoing",
+        isPrivate: Boolean((data as Echo).isPrivate),
+        shareMode: (data as Echo).shareMode ?? "shared",
+        ownerId: (data as Echo).ownerId ?? null,
+        ownerName: (data as Echo).ownerName ?? null,
+        ownerPhotoURL: (data as Echo).ownerPhotoURL ?? null,
+        collaboratorIds: (data as Echo).collaboratorIds ?? [],
+        lockDate: (data as Echo).lockDate ?? null,
+        unlockDate: (data as Echo).unlockDate ?? null,
+        createdAt,
+        updatedAt,
+      } as Record<string, any>;
       
-      await setDoc(doc(db, this.ECHOES_COLLECTION, echoId), newEcho);
+      await setDoc(doc(db, this.ECHOES_COLLECTION, echoId), payload);
       
-      return newEcho;
-    } catch (error) {
-      console.error("Error creating echo:", error);
+      return payload as Echo;
+    } catch {
       throw new Error("Failed to create echo");
     }
   }
@@ -93,8 +105,7 @@ export class EchoService {
         ...data,
         updatedAt: new Date().toISOString(),
       });
-    } catch (error) {
-      console.error("Error updating echo:", error);
+    } catch {
       throw new Error("Failed to update echo");
     }
   }
@@ -103,24 +114,23 @@ export class EchoService {
     try {
       const echoRef = doc(db, this.ECHOES_COLLECTION, echoId);
       await deleteDoc(echoRef);
-    } catch (error) {
-      console.error("Error deleting echo:", error);
+    } catch {
       throw new Error("Failed to delete echo");
     }
   }
 
-  static async addMedia(echoId: string, media: Omit<EchoMedia, "id">): Promise<EchoMedia> {
+  static async addMedia(echoId: string, media: EchoMedia | Omit<EchoMedia, "id">): Promise<EchoMedia> {
     try {
       const echo = await this.getEcho(echoId);
       if (!echo) {
         throw new Error("Echo not found");
       }
       
-      const mediaId = doc(collection(db, "temp")).id;
+      const mediaId = "id" in media ? media.id : doc(collection(db, "temp")).id;
       const newMedia: EchoMedia = {
         ...media,
         id: mediaId,
-        createdAt: new Date().toISOString(),
+        createdAt: media.createdAt ?? new Date().toISOString(),
       };
       
       const echoRef = doc(db, this.ECHOES_COLLECTION, echoId);
@@ -130,8 +140,7 @@ export class EchoService {
       });
       
       return newMedia;
-    } catch (error) {
-      console.error("Error adding media:", error);
+    } catch {
       throw new Error("Failed to add media");
     }
   }
@@ -148,23 +157,60 @@ export class EchoService {
       });
       
       return activities;
-    } catch (error) {
-      console.error("Error getting echo activities:", error);
+    } catch {
       return [];
     }
   }
 
-  static async addActivity(echoId: string, activity: Omit<EchoActivity, "id">): Promise<void> {
+  static async getActivitiesForEchoes(echoIds: string[]): Promise<EchoActivity[]> {
+    if (echoIds.length === 0) return [];
+    
     try {
-      const activityId = doc(collection(db, "temp")).id;
+      // We can't do a collection group query easily filtered by parent ID without complex indexing
+      // So we'll fetch in parallel for the relevant echoes
+      // Limit parallel requests to avoid overwhelming connection
+      const BATCH_SIZE = 5;
+      const allActivities: EchoActivity[] = [];
+      
+      for (let i = 0; i < echoIds.length; i += BATCH_SIZE) {
+        const batch = echoIds.slice(i, i + BATCH_SIZE);
+        const promises = batch.map(id => this.getEchoActivities(id));
+        const results = await Promise.all(promises);
+        results.forEach(activities => allActivities.push(...activities));
+      }
+      
+      return allActivities.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  static async addActivity(echoId: string, activity: EchoActivity | Omit<EchoActivity, "id">): Promise<void> {
+    try {
+      const activityId = "id" in activity ? activity.id : doc(collection(db, "temp")).id;
       const activitiesRef = collection(db, this.ECHOES_COLLECTION, echoId, this.ACTIVITIES_SUBCOLLECTION);
-      await setDoc(doc(activitiesRef, activityId), {
-        ...activity,
+      
+      // Normalize optional fields to avoid undefined in Firestore
+      const payload: Record<string, any> = {
         id: activityId,
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error("Error adding activity:", error);
+        echoId,
+        type: activity.type,
+        description: activity.description ?? null,
+        timestamp:
+          typeof activity.timestamp === "string"
+            ? activity.timestamp
+            : activity.timestamp ?? new Date().toISOString(),
+        userId: activity.userId ?? null,
+        userName: activity.userName ?? null,
+        userAvatar: (activity as EchoActivity).userAvatar ?? null,
+        mediaType: (activity as EchoActivity).mediaType ?? null,
+        // keep any extra fields but strip undefined
+      };
+
+      await setDoc(doc(activitiesRef, activityId), payload);
+    } catch {
       throw new Error("Failed to add activity");
     }
   }
@@ -198,8 +244,7 @@ export class EchoService {
       });
       
       return echoes;
-    } catch (error) {
-      console.error("Error filtering echoes:", error);
+    } catch {
       return [];
     }
   }
@@ -211,8 +256,7 @@ export class EchoService {
         collaboratorIds: arrayUnion(userId),
         updatedAt: new Date().toISOString(),
       });
-    } catch (error) {
-      console.error("Error adding collaborator:", error);
+    } catch {
       throw new Error("Failed to add collaborator");
     }
   }
@@ -224,8 +268,7 @@ export class EchoService {
         collaboratorIds: arrayRemove(userId),
         updatedAt: new Date().toISOString(),
       });
-    } catch (error) {
-      console.error("Error removing collaborator:", error);
+    } catch {
       throw new Error("Failed to remove collaborator");
     }
   }

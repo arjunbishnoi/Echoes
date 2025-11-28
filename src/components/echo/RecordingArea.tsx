@@ -34,6 +34,7 @@ export default function RecordingArea({
     recordingUri,
     levels,
     allLevels,
+    metering,
     getPlaybackSoundAsync,
   } = useAudioRecorder();
 
@@ -115,6 +116,7 @@ export default function RecordingArea({
         recordingDurationMs={durationMs}
         levels={levels}
         allLevels={allLevels}
+        metering={metering}
         getPlaybackSoundAsync={getPlaybackSoundAsync}
         skipInitialAnimation={stagedMedia.length > 0}
         hasStagedMedia={stagedMedia.length > 0}

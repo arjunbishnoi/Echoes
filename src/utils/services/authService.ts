@@ -1,18 +1,20 @@
 import { auth, db } from "@/config/firebase.config";
 import type { User } from "@/types/user";
+import { generateFriendCode } from "@/utils/friendCode";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as AuthSession from "expo-auth-session";
 import Constants from "expo-constants";
 import * as Crypto from "expo-crypto";
 import * as WebBrowser from "expo-web-browser";
 import {
-    signOut as firebaseSignOut,
-    GoogleAuthProvider,
-    OAuthProvider,
-    onAuthStateChanged,
-    signInWithCredential,
+  signOut as firebaseSignOut,
+  getAdditionalUserInfo,
+  GoogleAuthProvider,
+  OAuthProvider,
+  onAuthStateChanged,
+  signInWithCredential,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, enableNetwork } from "firebase/firestore";
+import { doc, enableNetwork, getDoc, setDoc } from "firebase/firestore";
 import { Platform } from "react-native";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -78,19 +80,6 @@ export class AuthService {
         redirectUri = `com.googleusercontent.apps.${clientIdPart}:/oauth2redirect`;
       }
 
-      if (__DEV__) {
-        // Debug log to verify the exact redirect used by the app at runtime
-        // Expected for Expo Go: https://auth.expo.dev/@arjunbishnoi/echoes
-        console.log(
-          "[Auth] Google redirect URI:",
-          redirectUri,
-          "| useProxy:",
-          useProxy,
-          "| ownership:",
-          Constants.appOwnership
-        );
-      }
-
       const discovery = {
         authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
         tokenEndpoint: "https://oauth2.googleapis.com/token",
@@ -144,26 +133,25 @@ export class AuthService {
         ? GoogleAuthProvider.credential(idToken)
         : GoogleAuthProvider.credential(null, accessToken);
       const userCredential = await signInWithCredential(auth, credential);
+      const additionalInfo = getAdditionalUserInfo(userCredential);
+      const isNewUser = additionalInfo?.isNewUser;
       
       // Ensure Firestore network is enabled (but don't fail if it errors)
       try {
         await enableNetwork(db);
-      } catch (error) {
-        // Network might already be enabled or there might be connection issues
-        // This is not critical - Firestore will work offline/online automatically
-        if (__DEV__) {
-          console.log("[Auth] Firestore network enable (non-critical):", error);
-        }
+      } catch {
+        // Network enable failures are non-critical
       }
       
       const user: User = {
         id: userCredential.user.uid,
         email: userCredential.user.email!,
-        displayName: userCredential.user.displayName || "User",
-        photoURL: userCredential.user.photoURL || undefined,
-        username: userCredential.user.email?.split("@")[0],
+        displayName: "", // Let user set their own display name
+        friendCode: generateFriendCode(userCredential.user.uid),
+        // Don't include photoURL and username if they're undefined - Firestore doesn't like undefined values
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        profileCompleted: false, // New users haven't completed profile yet
         friendIds: [],
         blockedUserIds: [],
         settings: {
@@ -184,34 +172,73 @@ export class AuthService {
 
       const userRef = doc(db, "users", user.id);
       
-      // Try to get user document, but don't fail if offline
-      let userDoc;
+      // Optimistic Check: Just try to read once
+      let existingUserData: User | null = null;
       try {
-        userDoc = await getDoc(userRef);
-      } catch (error) {
-        // If offline or network error, create new user document
-        if (__DEV__) {
-          console.log("[Auth] Firestore getDoc error (offline?), creating new user:", error);
+        const userDoc = await getDoc(userRef);
+        if (userDoc.exists()) {
+           existingUserData = userDoc.data() as User;
+           // Backfill friend code if missing
+           if (!existingUserData.friendCode) {
+              const newFriendCode = generateFriendCode(userCredential.user.uid);
+              existingUserData.friendCode = newFriendCode;
+              // Fire and forget update
+              setDoc(userRef, { friendCode: newFriendCode }, { merge: true }).catch(() => {});
+           }
         }
-        userDoc = null;
+      } catch {
       }
       
-      // Save or update user document
-      try {
-        if (userDoc?.exists()) {
-          await setDoc(userRef, { 
-            ...userDoc.data(),
-            updatedAt: new Date().toISOString() 
-          }, { merge: true });
-        } else {
+      // If we found existing user data, return it (with optional timestamp update)
+      if (existingUserData) {
+        // Try to update timestamp, but don't fail if it doesn't work
+        try {
+          await setDoc(
+            userRef,
+            {
+            ...existingUserData,
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        } catch {
+          // Non-critical
+        }
+        
+        // Cache the user data for future offline access
+        try {
+          const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+          await AsyncStorage.setItem(`user_${existingUserData.id}`, JSON.stringify(existingUserData));
+        } catch {
+        }
+        
+        return existingUserData;
+      }
+      
+      // If Firestore is unavailable/empty, check Cache
+      if (!existingUserData) {
+        try {
+          const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+          const cachedUserData = await AsyncStorage.getItem(`user_${userCredential.user.uid}`);
+          if (cachedUserData) {
+             return JSON.parse(cachedUserData) as User;
+          }
+        } catch (e) {}
+      }
+      
+      // No existing user found, create new user ONLY if we are sure it's a new user OR we checked cache and found nothing
+      // CRITICAL: Do NOT overwrite if getDoc failed and it's NOT a new user.
+      
+      if (isNewUser) {
+        try {
           await setDoc(userRef, user);
+        } catch {
         }
-      } catch (error) {
-        // If still offline, log but don't fail - user is authenticated
-        if (__DEV__) {
-          console.warn("[Auth] Failed to save user to Firestore (may be offline):", error);
-        }
-        // User is still authenticated, just Firestore write failed
+      } else {
+        // Not a new user, but we failed to fetch/cache data.
+        // Try to save ONLY the fields that should be present, using merge
+        // But avoid overwriting complex fields like friends/settings with defaults if possible
+        // Safest is to skip writing and just return the user object for the session
       }
       
       return user;
@@ -222,13 +249,18 @@ export class AuthService {
 
   static async signInWithApple(): Promise<User> {
     try {
+      // Check if Apple Authentication is available (requires paid Apple Developer account)
       let available = false;
       if (Platform.OS === "ios") {
-        available = await AppleAuthentication.isAvailableAsync();
+        try {
+          available = await AppleAuthentication.isAvailableAsync();
+        } catch (error) {
+          throw new Error("Apple Sign In is not available. This feature requires a paid Apple Developer account with Sign in with Apple capability enabled.");
+        }
       }
 
       if (!available) {
-        throw new Error("Apple Sign In is only available on iOS devices running iOS 13 or later.");
+        throw new Error("Apple Sign In is only available on iOS devices running iOS 13 or later with a paid Apple Developer account.");
       }
 
       const rawNonce = generateRandomNonce();
@@ -273,6 +305,7 @@ export class AuthService {
         id: userCredential.user.uid,
         email: emailFromApple,
         displayName: displayNameFromApple || userCredential.user.displayName || "Apple User",
+        friendCode: generateFriendCode(userCredential.user.uid),
         photoURL: userCredential.user.photoURL || undefined,
         username: emailFromApple.split("@")[0],
         createdAt: new Date().toISOString(),
@@ -328,30 +361,48 @@ export class AuthService {
       const currentUser = auth.currentUser;
       if (!currentUser) return null;
       
-      // Try to get user from Firestore
+      // 1. Offline-First: Check Cache Immediately
       try {
-        const userRef = doc(db, "users", currentUser.uid);
-        const userDoc = await getDoc(userRef);
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const cachedUserData = await AsyncStorage.getItem(`user_${currentUser.uid}`);
         
-        if (userDoc.exists()) {
-          return userDoc.data() as User;
+        if (cachedUserData) {
+          const parsedUser = JSON.parse(cachedUserData) as User;
+          return parsedUser;
         }
-      } catch (error) {
-        // If Firestore is offline or fails, create user from Firebase Auth data
-        if (__DEV__) {
-          console.log("[Auth] Firestore unavailable, using Firebase Auth data:", error);
-        }
+      } catch (storageError) {
+        // Cache failed, proceed to network
+      }
+
+      // 2. Network Fallback
+      const userRef = doc(db, "users", currentUser.uid);
+      try {
+          const userDoc = await getDoc(userRef);
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as User;
+            
+            // Update Cache
+            try {
+              const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+              await AsyncStorage.setItem(`user_${userData.id}`, JSON.stringify(userData));
+            } catch (e) {}
+            
+            return userData;
+          }
+      } catch {
       }
       
-      // If Firestore doesn't have the user or is offline, create from Firebase Auth
+      // If no cache and no network, return basic user from Auth
       const user: User = {
         id: currentUser.uid,
         email: currentUser.email || "",
-        displayName: currentUser.displayName || "User",
-        photoURL: currentUser.photoURL || undefined,
-        username: currentUser.email?.split("@")[0] || "user",
+        displayName: "", // Let user set their own display name
+        friendCode: generateFriendCode(currentUser.uid),
+        // Don't include photoURL and username if they're undefined - Firestore doesn't like undefined values
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        profileCompleted: false, // Default to false for new users
         friendIds: [],
         blockedUserIds: [],
         settings: {
@@ -390,30 +441,38 @@ export class AuthService {
 
   static onAuthStateChanged(callback: (user: User | null) => void) {
     return onAuthStateChanged(auth, async (firebaseUser) => {
-      if (__DEV__) {
-        console.log("[Auth] onAuthStateChanged fired, firebaseUser:", !!firebaseUser);
-      }
-      
       if (firebaseUser) {
         try {
           const user = await this.getCurrentUser();
-          if (__DEV__) {
-            console.log("[Auth] getCurrentUser result:", !!user);
-          }
           callback(user);
         } catch (error) {
-          if (__DEV__) {
-            console.error("[Auth] getCurrentUser failed in onAuthStateChanged:", error);
+          // Try to get from cache as a last resort
+          try {
+            const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+            const cachedUserData = await AsyncStorage.getItem(`user_${firebaseUser.uid}`);
+            
+            if (cachedUserData) {
+              const parsedUser = JSON.parse(cachedUserData) as User;
+              if (!parsedUser.friendCode) {
+                parsedUser.friendCode = generateFriendCode(firebaseUser.uid);
+              }
+              callback(parsedUser);
+              return;
+            }
+          } catch (cacheError) {
+            // Ignore cache error
           }
-          // If getCurrentUser fails, still provide a basic user from Firebase Auth
+
+          // If getCurrentUser fails and no cache, provide a basic user from Firebase Auth
           const fallbackUser: User = {
             id: firebaseUser.uid,
             email: firebaseUser.email || "",
-            displayName: firebaseUser.displayName || "User",
-            photoURL: firebaseUser.photoURL || undefined,
-            username: firebaseUser.email?.split("@")[0] || "user",
+            displayName: "", // Let user set their own display name
+            friendCode: generateFriendCode(firebaseUser.uid),
+            // Don't include photoURL and username if they're undefined - Firestore doesn't like undefined values
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
+            profileCompleted: false, // Default to false for fallback users
             friendIds: [],
             blockedUserIds: [],
             settings: {

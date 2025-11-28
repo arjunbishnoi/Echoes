@@ -1,6 +1,12 @@
 import { colors, radii, spacing } from "@/theme/theme";
+import type { Echo } from "@/types/echo";
+import { Storage } from "@/utils/asyncStorage";
 import { useAuth } from "@/utils/authContext";
+import { sortEchoesForHome } from "@/utils/echoSorting";
+import { ProfileCompletionTracker } from "@/utils/profileCompletionTracker";
+import { EchoService } from "@/utils/services/echoService";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Image } from "expo-image";
 import { useRouter, type Href } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
@@ -14,7 +20,53 @@ export function SignIn() {
   const handleGoogleSignIn = async () => {
     try {
       setIsSigningIn(true);
-      await signInWithGoogle();
+      const user = await signInWithGoogle();
+      
+      if (user) {
+        // Start preloading images for home screen while auth context syncs data
+        try {
+           // Ensure we are reading settings for this user
+           Storage.setNamespace(user.id);
+           const [remoteEchoes, pinnedIds, hiddenIds] = await Promise.all([
+             EchoService.getUserEchoes(user.id),
+             Storage.getPinned(),
+             Storage.getHiddenFromHome()
+           ]);
+
+           const pinnedSet = new Set(pinnedIds || []);
+           const hiddenSet = new Set(hiddenIds || []);
+
+           const visibleEchoes = remoteEchoes.filter((e: Echo) => !hiddenSet.has(e.id));
+           const topEchoes = sortEchoesForHome(visibleEchoes, pinnedSet).slice(0, 8);
+
+           const prefetchTasks: Promise<boolean>[] = [];
+           topEchoes.forEach((echo: Echo) => {
+             if (echo.imageUrl) {
+               prefetchTasks.push(Image.prefetch(echo.imageUrl));
+             }
+             if (echo.ownerPhotoURL) {
+               prefetchTasks.push(Image.prefetch(echo.ownerPhotoURL));
+             }
+           });
+
+           // Wait for images to cache
+           await Promise.all(prefetchTasks);
+
+        } catch (e) {
+           console.warn("Failed to preload home images:", e);
+           // Proceed anyway
+        }
+
+        const needsCompletion = await ProfileCompletionTracker.needsProfileCompletion(user);
+        if (needsCompletion) {
+          router.replace("/(auth)/personalization" as Href);
+        } else {
+          router.replace("/(main)/" as Href);
+        }
+      } else {
+        // Fallback if no user returned
+      router.replace("/" as Href);
+      }
     } catch (error) {
       console.error("Sign in error:", error);
       Alert.alert(
@@ -67,7 +119,7 @@ export function SignIn() {
           accessibilityLabel="Sign in with Google"
         >
           {isSigningIn || isLoading ? (
-            <ActivityIndicator color={colors.textSecondary} />
+            <ActivityIndicator color={colors.textSecondary} style={styles.spinner} />
           ) : (
             <>
               <Ionicons name="logo-google" size={24} color={colors.black} />
@@ -184,6 +236,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     borderRadius: radii.pill,
     gap: spacing.md,
+    minHeight: 56,
   },
   googleButtonPressed: {
     opacity: 0.7,
@@ -195,6 +248,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
     color: colors.black,
+  },
+  spinner: {
+    transform: [{ scale: 1.2 }],
   },
   guestButton: {
     alignItems: "center",
@@ -210,8 +266,3 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
 });
-
-
-
-
-

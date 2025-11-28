@@ -5,7 +5,7 @@ export const colors = {
   surfaceBorder: "#2B2B2B",
   floatingBarBg: "rgb(132, 132, 132)",
   textPrimary: "#FFFFFF",
-  textSecondary: "#A3A3A3",
+  textSecondary: "#B8B8B8",
   white: "#FFFFFF",
   black: "#000000",
   lightOverlay: "rgba(255,255,255,0.10)",

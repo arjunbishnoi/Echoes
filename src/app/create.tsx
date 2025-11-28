@@ -1,6 +1,7 @@
 import { useToast } from "@/contexts/ToastContext";
 import { KEYBOARD_ANIMATION } from "@/constants/animations";
 import { useEchoStorage } from "@/hooks/useEchoStorage";
+import { useFriends } from "@/utils/friendContext";
 import { colors, radii, sizes, spacing } from "@/theme/theme";
 import { useEchoDraft } from "@/utils/echoDraft";
 import { COVER_IMAGE_ASPECT_RATIO, ensureCoverImageAspectRatio } from "@/utils/image";
@@ -32,6 +33,7 @@ export default function CreateEchoScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { createEcho } = useEchoStorage();
+  const { friendsById } = useFriends();
   const { isPrivate, collaboratorIds, lockDate, unlockDate } = useEchoDraft();
   const { showToast } = useToast();
 
@@ -73,7 +75,21 @@ export default function CreateEchoScreen() {
     if (!hasName) return;
     
     try {
-      const newEcho = await createEcho({
+      const activeCollaboratorIds = isPrivate ? [] : collaboratorIds;
+
+      const collaboratorInfos =
+        activeCollaboratorIds.map((id) => {
+          const friend = friendsById[id];
+          const displayName = friend?.displayName || friend?.username || "Friend";
+          return {
+            id,
+            name: displayName,
+            avatar: friend?.photoURL,
+          };
+        });
+
+      const newEcho = await createEcho(
+        {
         title: echoName.trim(),
         imageUrl: coverImageUri,
         status: "ongoing",
@@ -81,11 +97,13 @@ export default function CreateEchoScreen() {
         updatedAt: new Date().toISOString(),
         isPrivate: isPrivate,
         shareMode: isPrivate ? "private" : "shared",
-        collaboratorIds: isPrivate ? [] : collaboratorIds,
+          collaboratorIds: activeCollaboratorIds,
         // Add lock/unlock dates if set
         ...(lockDate && { lockDate: lockDate.toISOString() }),
         ...(unlockDate && { unlockDate: unlockDate.toISOString() }),
-      });
+        },
+        collaboratorInfos
+      );
       
       // Show toast notification
       showToast(`"${echoName}" has been created successfully`, "checkmark-circle", 3000);

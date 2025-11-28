@@ -1,6 +1,7 @@
 import { getDb } from "@/db/client";
 import { enqueuePendingOp } from "@/db/pendingOps";
 import type { EchoActivity } from "@/types/echo";
+import { SyncService } from "./services/syncService";
 
 let activitiesCache: EchoActivity[] = [];
 let isInitialized = false;
@@ -29,7 +30,20 @@ function sortActivities(list: EchoActivity[]): EchoActivity[] {
   );
 }
 
+let listeners: (() => void)[] = [];
+
+function notifyListeners() {
+  listeners.forEach((l) => l());
+}
+
 export const ActivityStorage = {
+  subscribe: (listener: () => void): (() => void) => {
+    listeners.push(listener);
+    return () => {
+      listeners = listeners.filter((l) => l !== listener);
+    };
+  },
+
   isReady: (): boolean => {
     return isInitialized;
   },
@@ -38,8 +52,8 @@ export const ActivityStorage = {
     try {
       await reloadCache();
       isInitialized = true;
-    } catch (error) {
-      console.error("Failed to initialize activities:", error);
+      notifyListeners();
+    } catch {
       activitiesCache = [];
       isInitialized = true;
     }
@@ -60,14 +74,14 @@ export const ActivityStorage = {
   add: async (activity: EchoActivity): Promise<EchoActivity> => {
     const db = getDb();
     await db.runAsync(
-      `INSERT INTO activities (id, echoId, type, description, timestamp, userId, userName, userAvatar, mediaType)
+      `INSERT OR IGNORE INTO activities (id, echoId, type, description, timestamp, userId, userName, userAvatar, mediaType)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         activity.id,
         activity.echoId,
         activity.type,
         activity.description ?? null,
-        activity.timestamp,
+        typeof activity.timestamp === "string" ? activity.timestamp : activity.timestamp.toISOString(),
         activity.userId ?? null,
         activity.userName ?? null,
         activity.userAvatar ?? null,
@@ -76,6 +90,11 @@ export const ActivityStorage = {
     );
     await enqueuePendingOp("activity", activity.id, "activity", { echoId: activity.echoId });
     await reloadCache();
+    notifyListeners();
+    
+    // Trigger sync
+    SyncService.processPendingOps().catch(() => {});
+    
     return activity;
   },
 
@@ -84,6 +103,7 @@ export const ActivityStorage = {
     await db.runAsync(`DELETE FROM activities WHERE id = ?`, [id]);
     const initialLength = activitiesCache.length;
     activitiesCache = activitiesCache.filter((a) => a.id !== id);
+    notifyListeners();
     return activitiesCache.length < initialLength;
   },
 
@@ -94,8 +114,9 @@ export const ActivityStorage = {
     userName: string = "You",
     userAvatar?: string
   ): Promise<EchoActivity> => {
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
     const activity: EchoActivity = {
-      id: `${echoId}-created-${Date.now()}`,
+      id: `${echoId}-created-${Date.now()}-${randomSuffix}`,
       echoId,
       type: "echo_created",
       userId,
@@ -121,8 +142,9 @@ export const ActivityStorage = {
       document: "a file",
     }[mediaType];
 
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
     const activity: EchoActivity = {
-      id: `${echoId}-media-${Date.now()}`,
+      id: `${echoId}-media-${Date.now()}-${randomSuffix}`,
       echoId,
       type: "media_uploaded",
       userId,
@@ -168,8 +190,9 @@ export const ActivityStorage = {
       description = `added ${count} items`;
     }
 
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
     const activity: EchoActivity = {
-      id: `${echoId}-media-${Date.now()}`,
+      id: `${echoId}-media-${Date.now()}-${randomSuffix}`,
       echoId,
       type: "media_uploaded",
       userId,
@@ -183,8 +206,9 @@ export const ActivityStorage = {
   },
 
   createEchoLocked: async (echoId: string, echoTitle: string): Promise<EchoActivity> => {
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
     const activity: EchoActivity = {
-      id: `${echoId}-locked-${Date.now()}`,
+      id: `${echoId}-locked-${Date.now()}-${randomSuffix}`,
       echoId,
       type: "echo_locked",
       userId: "system",
@@ -196,8 +220,9 @@ export const ActivityStorage = {
   },
 
   createEchoUnlocked: async (echoId: string, echoTitle: string): Promise<EchoActivity> => {
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
     const activity: EchoActivity = {
-      id: `${echoId}-unlocked-${Date.now()}`,
+      id: `${echoId}-unlocked-${Date.now()}-${randomSuffix}`,
       echoId,
       type: "echo_unlocked",
       userId: "system",
@@ -208,10 +233,66 @@ export const ActivityStorage = {
     return await ActivityStorage.add(activity);
   },
 
+  createEchoLockingSoon: async (echoId: string, _echoTitle: string): Promise<EchoActivity> => {
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    const activity: EchoActivity = {
+      id: `${echoId}-locksoon-${Date.now()}-${randomSuffix}`,
+      echoId,
+      type: "echo_locking_soon",
+      userId: "system",
+      userName: "System",
+      description: "will be locked soon.",
+      timestamp: new Date().toISOString(),
+    };
+    return await ActivityStorage.add(activity);
+  },
+
+  createEchoUnlockingSoon: async (echoId: string, _echoTitle: string): Promise<EchoActivity> => {
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    const activity: EchoActivity = {
+      id: `${echoId}-unlocksoon-${Date.now()}-${randomSuffix}`,
+      echoId,
+      type: "echo_unlocking_soon",
+      userId: "system",
+      userName: "System",
+      description: "unlocks soon.",
+      timestamp: new Date().toISOString(),
+    };
+    return await ActivityStorage.add(activity);
+  },
+
   clear: async () => {
     const db = getDb();
     await db.runAsync(`DELETE FROM activities`);
     activitiesCache = [];
     isInitialized = false;
+  },
+
+  syncActivities: async (activities: EchoActivity[]) => {
+    const db = getDb();
+    
+    // NOTE: Avoid wrapping in an explicit transaction to prevent
+    // "cannot start a transaction within a transaction" errors
+    // when called from other transactional contexts.
+      for (const activity of activities) {
+        await db.runAsync(
+          `INSERT OR IGNORE INTO activities (id, echoId, type, description, timestamp, userId, userName, userAvatar, mediaType)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            activity.id,
+            activity.echoId,
+            activity.type,
+            activity.description ?? null,
+            typeof activity.timestamp === "string" ? activity.timestamp : activity.timestamp.toISOString(),
+            activity.userId ?? null,
+            activity.userName ?? null,
+          (activity as EchoActivity).userAvatar ?? null,
+          (activity as EchoActivity).mediaType ?? null,
+          ]
+        );
+      }
+    
+    await reloadCache();
+    notifyListeners();
   },
 };

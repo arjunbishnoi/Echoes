@@ -65,16 +65,28 @@ function ProfileUpdateItem(props: Props) {
               <Text> wants to be your friend.</Text>
             </Text>
           </View>
-          <View style={styles.iconContainer}>
-            <Pressable 
-              accessibilityRole="button" 
-              hitSlop={12} 
+          <View style={styles.requestActions}>
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={12}
+              style={styles.requestButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                props.onDeclineRequest?.();
+              }}
+            >
+              <Ionicons name="close" size={16} color={colors.white} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={12}
+              style={styles.requestButton}
               onPress={(e) => {
                 e.stopPropagation();
                 props.onAcceptRequest?.();
               }}
             >
-              <Ionicons name="person-add" size={20} color={colors.white} />
+              <Ionicons name="person-add" size={18} color={colors.white} />
             </Pressable>
           </View>
           <Pressable
@@ -247,6 +259,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  requestActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  requestButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   avatar: {
     width: 32,
     height: 32,
@@ -292,7 +317,7 @@ const styles = StyleSheet.create({
   rowCentered: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
+    paddingVertical: 0,
     borderRadius: 12,
     paddingHorizontal: 0,
     paddingRight: 0,

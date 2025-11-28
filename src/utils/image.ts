@@ -88,7 +88,6 @@ export async function ensureCoverImageAspectRatio(
 
     return result.uri ?? uri;
   } catch (error) {
-    console.warn("Failed to enforce cover aspect ratio", error);
     return uri;
   }
 }

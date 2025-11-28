@@ -1,3 +1,4 @@
+import { BackButton } from "@/components/BackButton";
 import { colors } from "@/theme/theme";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
@@ -41,15 +42,7 @@ export default function ProfileModalStack() {
           headerTitleAlign: "center",
           headerBackVisible: false,
           headerLeft: () => (
-            <Pressable
-              onPress={() => navigation.goBack()}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-              hitSlop={12}
-              style={{ paddingHorizontal: 8, paddingVertical: 6 }}
-            >
-              <Ionicons name="chevron-back" size={22} color={colors.white} />
-            </Pressable>
+            <BackButton onPress={() => navigation.goBack()} color={colors.white} />
           ),
           headerRight: () => (
             <Pressable
@@ -74,15 +67,33 @@ export default function ProfileModalStack() {
           title: "",
           headerBackVisible: false,
           headerLeft: () => (
+            <BackButton onPress={() => navigation.goBack()} color={colors.white} />
+          ),
+          headerRight: () => (
             <Pressable
-              onPress={() => navigation.goBack()}
+              onPress={() => navigation.getParent()?.goBack()}
               accessibilityRole="button"
-              accessibilityLabel="Back"
+              accessibilityLabel="Close"
               hitSlop={12}
-              style={{ paddingHorizontal: 8, paddingVertical: 6 }}
+              style={{ paddingHorizontal: 4, paddingVertical: 2 }}
             >
-              <Ionicons name="chevron-back" size={22} color={colors.white} />
+              <Ionicons name="close" size={28} color={colors.white} />
             </Pressable>
+          ),
+          gestureEnabled: true,
+          fullScreenGestureEnabled: false,
+          gestureDirection: "horizontal",
+          animation: "slide_from_right",
+        })}
+      />
+      <Stack.Screen
+        name="add-friends"
+        options={({ navigation }) => ({
+          title: "Add Friends",
+          headerTitleAlign: "center",
+          headerBackVisible: false,
+          headerLeft: () => (
+            <BackButton onPress={() => navigation.goBack()} color={colors.white} />
           ),
           headerRight: () => (
             <Pressable
@@ -108,15 +119,7 @@ export default function ProfileModalStack() {
           headerTitleAlign: "center",
           headerBackVisible: false,
           headerLeft: () => (
-            <Pressable
-              onPress={() => navigation.goBack()}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-              hitSlop={12}
-              style={{ paddingHorizontal: 8, paddingVertical: 6 }}
-            >
-              <Ionicons name="chevron-back" size={22} color={colors.white} />
-            </Pressable>
+            <BackButton onPress={() => navigation.goBack()} color={colors.white} />
           ),
           headerRight: () => (
             <Pressable
@@ -136,21 +139,59 @@ export default function ProfileModalStack() {
         })}
       />
       <Stack.Screen
+        name="qr-share"
+        options={({ navigation }) => ({
+          title: "Your QR",
+          headerTitleAlign: "center",
+          headerBackVisible: false,
+          headerLeft: () => (
+            <BackButton onPress={() => navigation.goBack()} color={colors.white} />
+          ),
+          headerRight: () => (
+            <Pressable
+              onPress={() => navigation.getParent()?.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={12}
+              style={{ paddingHorizontal: 4, paddingVertical: 2 }}
+            >
+              <Ionicons name="close" size={28} color={colors.white} />
+            </Pressable>
+          ),
+          animation: "slide_from_right",
+        })}
+      />
+      <Stack.Screen
+        name="qr-scan"
+        options={({ navigation }) => ({
+          title: "Import QR",
+          headerTitleAlign: "center",
+          headerBackVisible: false,
+          headerLeft: () => (
+            <BackButton onPress={() => navigation.goBack()} color={colors.white} />
+          ),
+          headerRight: () => (
+            <Pressable
+              onPress={() => navigation.getParent()?.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              hitSlop={12}
+              style={{ paddingHorizontal: 4, paddingVertical: 2 }}
+            >
+              <Ionicons name="close" size={28} color={colors.white} />
+            </Pressable>
+          ),
+          animation: "slide_from_right",
+        })}
+      />
+      <Stack.Screen
         name="edit-name"
         options={({ navigation }) => ({
           title: "Edit Display Name",
           headerTitleAlign: "center",
           headerBackVisible: false,
           headerLeft: () => (
-            <Pressable
-              onPress={() => navigation.goBack()}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-              hitSlop={12}
-              style={{ paddingHorizontal: 8, paddingVertical: 6 }}
-            >
-              <Ionicons name="chevron-back" size={22} color={colors.white} />
-            </Pressable>
+            <BackButton onPress={() => navigation.goBack()} color={colors.white} />
           ),
         })}
       />
@@ -161,15 +202,7 @@ export default function ProfileModalStack() {
           headerTitleAlign: "center",
           headerBackVisible: false,
           headerLeft: () => (
-            <Pressable
-              onPress={() => navigation.goBack()}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-              hitSlop={12}
-              style={{ paddingHorizontal: 8, paddingVertical: 6 }}
-            >
-              <Ionicons name="chevron-back" size={22} color={colors.white} />
-            </Pressable>
+            <BackButton onPress={() => navigation.goBack()} color={colors.white} />
           ),
         })}
       />

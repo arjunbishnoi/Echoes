@@ -42,7 +42,15 @@ export interface EchoMedia {
 export interface EchoActivity {
   id: string;
   echoId: string;
-  type: "echo_created" | "friend_added" | "media_uploaded" | "echo_locked" | "echo_unlocked" | "collaborator_added";
+  type:
+    | "echo_created"
+    | "friend_added"
+    | "media_uploaded"
+    | "echo_locked"
+    | "echo_unlocked"
+    | "collaborator_added"
+    | "echo_locking_soon"
+    | "echo_unlocking_soon";
   userId: string;
   userName: string;
   userAvatar?: string;

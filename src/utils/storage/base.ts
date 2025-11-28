@@ -15,8 +15,7 @@ export abstract class BaseStorage<T> {
       const stored = await Storage.get<T[]>(this.storageKey);
       this.cache = stored || [];
       this.isInitialized = true;
-    } catch (error) {
-      console.error(`Failed to initialize ${this.storageKey}:`, error);
+    } catch {
       this.cache = [];
       this.isInitialized = true;
     }
@@ -25,8 +24,7 @@ export abstract class BaseStorage<T> {
   async persist(): Promise<boolean> {
     try {
       return await Storage.set(this.storageKey, this.cache);
-    } catch (error) {
-      console.error(`Failed to persist ${this.storageKey}:`, error);
+    } catch {
       return false;
     }
   }

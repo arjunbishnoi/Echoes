@@ -4,9 +4,11 @@ export interface User {
   displayName: string;
   photoURL?: string;
   username?: string;
+  friendCode?: string;
   bio?: string;
   createdAt: string;
   updatedAt: string;
+  profileCompleted?: boolean; // Track if user has completed personalization
   // Firebase-ready fields
   friendIds?: string[]; // Array of user IDs
   blockedUserIds?: string[];
@@ -44,6 +46,9 @@ export interface FriendRequest {
   status: "pending" | "accepted" | "rejected";
   createdAt: string;
   updatedAt: string;
+  fromDisplayName?: string;
+  fromUsername?: string;
+  fromPhotoURL?: string;
 }
 
 // For friendship relationships
@@ -52,5 +57,11 @@ export interface Friendship {
   userId1: string;
   userId2: string;
   createdAt: string;
+}
+
+export interface FriendCodeLookupResult {
+  id: string;
+  displayName: string;
+  username?: string;
 }
 

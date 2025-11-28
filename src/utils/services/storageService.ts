@@ -23,7 +23,6 @@ export class StorageService {
             onProgress?.(progress);
           },
           (error) => {
-            console.error("Upload error:", error);
             reject(error);
           },
           async () => {
@@ -37,7 +36,6 @@ export class StorageService {
         );
       });
     } catch (error) {
-      console.error("Error uploading file:", error);
       throw new Error("Failed to upload file");
     }
   }
@@ -97,7 +95,6 @@ export class StorageService {
       const storageRef = ref(storage, storagePath);
       await deleteObject(storageRef);
     } catch (error) {
-      console.error("Error deleting file:", error);
       throw new Error("Failed to delete file");
     }
   }

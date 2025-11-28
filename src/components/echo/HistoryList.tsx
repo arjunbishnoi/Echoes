@@ -1,5 +1,7 @@
+import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { spacing } from "@/theme/theme";
 import type { EchoActivity } from "@/types/echo";
+import { aggregateActivitiesForDisplay } from "@/utils/activityAggregation";
 import { StyleSheet, View } from "react-native";
 import EchoNotifItem from "../notifications/EchoNotifItem";
 import EmptyState from "../ui/EmptyState";
@@ -21,6 +23,7 @@ function getTimeAgo(date: Date | string): string {
 }
 
 export default function HistoryList({ activities = [] }: HistoryListProps) {
+  const { getEchoById } = useEchoStorage();
   if (activities.length === 0) {
     return (
       <View style={styles.emptyContainer}>
@@ -33,28 +36,44 @@ export default function HistoryList({ activities = [] }: HistoryListProps) {
     );
   }
 
+  const aggregated = aggregateActivitiesForDisplay(activities);
+
   return (
     <View style={styles.container}>
-      {activities.map((activity, index) => {
+      {aggregated.map(({ activity, memoryCount }, index) => {
         const uniqueKey = activity.id || `history-${activity.timestamp}-${activity.userId || index}-${index}`;
         const isYou = activity.userName === "You";
+        const isTimeStatus =
+          activity.type === "echo_locking_soon" || activity.type === "echo_unlocking_soon";
+        const echo = getEchoById(activity.echoId);
         const actorAvatarUri =
-          activity.userAvatar ||
-          (isYou ? "https://picsum.photos/seed/user/100/100" : `https://picsum.photos/seed/${activity.userId}/100/100`);
+          isTimeStatus
+            ? undefined
+            : activity.userAvatar ||
+              (isYou
+                ? "https://picsum.photos/seed/user/100/100"
+                : `https://picsum.photos/seed/${activity.userId}/100/100`);
+        const isMemoryUpload = activity.type === "media_uploaded";
+        const isCollaboratorAdded = activity.type === "collaborator_added";
 
         return (
           <View key={uniqueKey}>
-            {index > 0 ? <View style={{ height: spacing.xl }} /> : null}
+            {index > 0 ? <View style={{ height: spacing.lg }} /> : null}
             <View style={styles.row}>
               <EchoNotifItem
                 actorAvatarUri={actorAvatarUri}
-                displayName={activity.userName}
-                subtitleText={activity.description}
+                displayName={isTimeStatus ? (echo?.title ?? activity.userName) : activity.userName}
+                subtitleText={isMemoryUpload ? undefined : activity.description}
+                count={isMemoryUpload ? memoryCount : undefined}
                 timestamp={activity.timestamp}
                 hideCover
                 avatarSize={56}
-                activityType={activity.type}
+                activityType={activity.type === "echo_created" ? undefined : activity.type}
                 mediaType={activity.mediaType}
+                badgeVariant={isCollaboratorAdded ? "new" : isMemoryUpload ? "count" : undefined}
+                fontSize={16}
+                lineHeight={18}
+                avatarGap={spacing.lg}
               />
             </View>
           </View>

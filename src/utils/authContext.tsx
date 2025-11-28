@@ -5,6 +5,7 @@ import { EchoStorage } from "@/utils/echoStorage";
 import { FriendStorage } from "@/utils/friendStorage";
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { AuthService } from "./services/authService";
+import { EchoService } from "./services/echoService";
 import { UserService } from "./services/userService";
 
 interface AuthContextType {
@@ -12,7 +13,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   isGuest: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: () => Promise<User | void>;
   signInWithApple: () => Promise<void>;
   signInAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -37,22 +38,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         // Set loading to false regardless - either we have a user or we don't
         setIsLoading(false);
-      } catch (error) {
+      } catch {
         // If check fails, still set loading to false and wait for onAuthStateChanged
         setIsLoading(false);
-        if (__DEV__) {
-          console.log("[Auth] Initial auth check failed:", error);
-        }
       }
     };
     
     void checkInitialAuth();
 
     const unsubscribe = AuthService.onAuthStateChanged((firebaseUser) => {
-      if (__DEV__) {
-        console.log("[AuthContext] onAuthStateChanged callback, user:", !!firebaseUser, "isGuest:", isGuest);
-      }
-      
       if (isGuest) {
         setIsLoading(false);
         return;
@@ -60,10 +54,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       setUser(firebaseUser);
       setIsLoading(false);
-      
-      if (__DEV__) {
-        console.log("[AuthContext] User state updated, isAuthenticated:", !!firebaseUser);
-      }
     });
 
     return () => unsubscribe();
@@ -71,20 +61,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      if (__DEV__) {
-        console.log("[AuthContext] Starting Google sign-in...");
-      }
-      
       const user = await AuthService.signInWithGoogle();
       setIsGuest(false);
-      
-      if (__DEV__) {
-        console.log("[AuthContext] Google sign-in completed, user:", !!user);
-      }
+
+      return user;
     } catch (error) {
-      if (__DEV__) {
-        console.error("[AuthContext] Google sign-in failed:", error);
-      }
       throw error;
     }
   };
@@ -94,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await AuthService.signInWithApple();
       setIsGuest(false);
     } catch (error) {
+      // Apple Sign In not available with personal developer account
       throw error;
     }
   };
@@ -149,7 +131,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const updatedUser = await UserService.updateUser(user.id, data);
       setUser(updatedUser);
-    } catch (error) {
+    } catch (error: any) {
+      // If Firestore fails but we have the data, update local state as fallback
+      if (user && (error?.message?.includes("Target ID already exists") || 
+                   error?.message?.includes("offline"))) {
+        const localUpdatedUser = {
+          ...user,
+          ...data,
+          updatedAt: new Date().toISOString(),
+        };
+        setUser(localUpdatedUser);
+        
+        // Don't throw error if we successfully updated local state
+        return;
+      }
+      
       throw error;
     }
   };
@@ -167,6 +163,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ActivityStorage.clear(),
         FriendStorage.clear(),
       ]);
+      
+      // Sync new data for the new user
+      if (user && !isGuest) {
+        try {
+          // 1. Fetch remote echoes first
+          const remoteEchoes = await EchoService.getUserEchoes(user.id);
+          
+          // 2. Sync them to local storage
+          await EchoStorage.syncRemoteEchoes(remoteEchoes, user.id);
+          
+          // 3. Now fetch activities (since we now have the echoes locally)
+          await EchoStorage.refreshActivitiesFromRemote(user.id);
+        } catch {
+        }
+      }
     };
     void applyNamespace();
   }, [user?.id, isGuest]);
@@ -192,8 +203,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
+  // Graceful fallback for useAuth
   if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
+    return {
+      user: null,
+      isLoading: true, // Assume loading if context is missing
+      isAuthenticated: false,
+      isGuest: false,
+      signInWithGoogle: async () => {},
+      signInWithApple: async () => {},
+      signInAsGuest: async () => {},
+      signOut: async () => {},
+      updateProfile: async () => {},
+    };
   }
   return context;
 }

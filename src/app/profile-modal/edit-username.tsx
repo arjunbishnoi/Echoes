@@ -25,8 +25,9 @@ export default function EditProfileUsernameModal() {
         <Pressable
           onPress={() => router.back()}
           accessibilityRole="button"
+          accessibilityLabel="Cancel"
           hitSlop={12}
-          style={{ paddingHorizontal: 8, paddingVertical: 6 }}
+          style={styles.cancelButton}
         >
           <Text style={styles.cancelText}>Cancel</Text>
         </Pressable>
@@ -35,8 +36,9 @@ export default function EditProfileUsernameModal() {
         <Pressable
           onPress={handleSave}
           accessibilityRole="button"
+          accessibilityLabel="Save"
           hitSlop={12}
-          style={{ paddingHorizontal: 8, paddingVertical: 6 }}
+          style={styles.saveButton}
         >
           <Text style={styles.saveText}>Save</Text>
         </Pressable>
@@ -78,15 +80,23 @@ const styles = StyleSheet.create({
     borderColor: colors.surfaceBorder,
     fontSize: 17,
   },
-  saveText: {
-    color: "#0A84FF",
-    fontSize: 16,
-    fontWeight: "700",
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 2,
   },
   cancelText: {
     color: colors.textPrimary,
-    fontSize: 16,
     fontWeight: "600",
+    fontSize: 17,
+  },
+  saveButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 2,
+  },
+  saveText: {
+    color: colors.white,
+    fontWeight: "600",
+    fontSize: 17,
   },
 });
 

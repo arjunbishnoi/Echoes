@@ -8,6 +8,7 @@ import {
     setAudioModeAsync,
 } from "expo-audio";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSharedValue } from "react-native-reanimated";
 
 const generateUniqueId = (): string => {
   const timestamp = Date.now();
@@ -26,6 +27,8 @@ export function useAudioRecorder() {
   const recordingRef = useRef<AudioRecorder | null>(null);
   const [levels, setLevels] = useState<number[]>([]);
   const [allLevels, setAllLevels] = useState<number[]>([]);
+  const allLevelsRef = useRef<number[]>([]);
+  const metering = useSharedValue(0);
   const statusIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPausedRef = useRef(false);
   const previewPlayerRef = useRef<AudioPlayer | null>(null);
@@ -78,14 +81,18 @@ export function useAudioRecorder() {
           setDurationMs(status.durationMillis ?? 0);
           setRecordingUri(status.url ?? null);
           if (!isPausedRef.current && typeof status.metering === "number") {
-            updateLevelsFromMetering(status.metering);
+            // Drive UI with SharedValue (60fps, no re-renders)
+            const amp = Math.max(0, Math.min(1, (status.metering + 60) / 60));
+            metering.value = amp;
+            // Accumulate history in ref (no re-renders)
+            allLevelsRef.current.push(amp);
           }
         } catch {
           // ignore polling errors
         }
       }, 100);
     },
-    [stopStatusInterval, updateLevelsFromMetering]
+    [stopStatusInterval, metering]
   );
 
   const clearRecorder = useCallback(async () => {
@@ -127,6 +134,8 @@ export function useAudioRecorder() {
       isPausedRef.current = false;
       setLevels([]);
       setAllLevels([]);
+      allLevelsRef.current = [];
+      metering.value = 0;
       startStatusInterval(recorder);
       return true;
     } catch (err) {
@@ -153,6 +162,10 @@ export function useAudioRecorder() {
     setIsPaused(false);
     isPausedRef.current = false;
     setRecordingUri(uri);
+    
+    // Sync final history to state for summary view
+    setAllLevels(allLevelsRef.current);
+    
     recordingRef.current = null;
     releasePreviewPlayer();
 
@@ -188,8 +201,10 @@ export function useAudioRecorder() {
     recordingRef.current = null;
     setLevels([]);
     setAllLevels([]);
+    allLevelsRef.current = [];
+    metering.value = 0;
     releasePreviewPlayer();
-  }, [releasePreviewPlayer, stopStatusInterval]);
+  }, [releasePreviewPlayer, stopStatusInterval, metering]);
 
   const pauseRecording = useCallback(async (): Promise<boolean> => {
     const recorder = recordingRef.current;
@@ -242,8 +257,9 @@ export function useAudioRecorder() {
     isPaused,
     durationMs,
     recordingUri,
-    levels,
-    allLevels,
+    levels, // Deprecated: empty during recording
+    allLevels, // Populated only after stop
+    metering,
     getPlaybackSoundAsync,
     startRecording,
     stopRecording,

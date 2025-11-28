@@ -4,7 +4,6 @@ import EchoHeroImage from "@/components/echo/EchoHeroImage";
 import EchoProgressTimeline from "@/components/echo/EchoProgressTimeline";
 import EchoTabBar, { type EchoTab } from "@/components/echo/EchoTabBar";
 import EchoTitle from "@/components/echo/EchoTitle";
-import ImageGradientOverlay from "@/components/echo/ImageGradientOverlay";
 import RecordingArea from "@/components/echo/RecordingArea";
 import MediaGalleryViewer from "@/components/MediaGalleryViewer";
 import EmptyState from "@/components/ui/EmptyState";
@@ -15,8 +14,10 @@ import { useEchoStorage } from "@/hooks/useEchoStorage";
 import { useEchoTabs } from "@/hooks/useEchoTabs";
 import { useFavoriteEchoes } from "@/hooks/useFavoriteEchoes";
 import { useHeaderTitle } from "@/hooks/useHeaderTitle";
+import { useUserProfiles } from "@/hooks/useUserProfiles";
 import { colors, spacing } from "@/theme/theme";
 import type { Echo } from "@/types/echo";
+import { useAuth } from "@/utils/authContext";
 import { computeEchoProgressPercent } from "@/utils/echoes";
 import { getExpoSwiftUI } from "@/utils/expoUi";
 import { useFriends } from "@/utils/friendContext";
@@ -25,7 +26,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActionSheetIOS, Alert, Animated, Image, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActionSheetIOS, Alert, Image, Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -85,9 +86,6 @@ export default function EchoDetailScreen() {
     }
   }, [capsule?.status]);
   
-  // Fade-in animation for smooth transitions
-  const [fadeAnim] = useState(new Animated.Value(0));
-
   const {
     selectedTab,
     setSelectedTab,
@@ -102,26 +100,63 @@ export default function EchoDetailScreen() {
   const { showHeaderTitle, handleTitleLayout, handleTitleContainerLayout, handleScroll, titleContainerRef } = useHeaderTitle(insets.top);
   const { isVisibleOnHome, addToHome, removeFromHome } = useHomeEchoContext();
   const { isFavorite, toggleFavorite } = useFavoriteEchoes();
+  const { user } = useAuth();
   const { friendsById } = useFriends();
 
-  const collaboratorAvatars = useMemo(() => {
-    const avatars: string[] = [];
+  const collaboratorProfileIds = useMemo(() => {
+    if (!capsule) return [];
+    const ids = new Set<string>();
+    if (capsule.ownerId) ids.add(capsule.ownerId);
+    capsule.collaboratorIds?.forEach((id) => {
+      if (id) ids.add(id);
+    });
+    return Array.from(ids);
+  }, [capsule?.id, capsule?.ownerId, capsule?.collaboratorIds]);
+
+  const collaboratorProfiles = useUserProfiles(collaboratorProfileIds);
+
+  const collaboratorParticipants = useMemo(() => {
+    if (!capsule) return [];
+    const participants: { avatar: string; id?: string }[] = [];
+    const seenIds = new Set<string>();
     
-    if (capsuleData.ownerPhotoURL) {
-      avatars.push(capsuleData.ownerPhotoURL);
+    if (capsule.ownerId) {
+      let ownerAvatar =
+        capsule.ownerPhotoURL ||
+        friendsById[capsule.ownerId]?.photoURL ||
+        collaboratorProfiles[capsule.ownerId]?.photoURL;
+      
+      // Fallback to current user if owner is me and photo is missing
+      if (!ownerAvatar && user && capsule.ownerId === user.id) {
+        ownerAvatar = user.photoURL;
+      }
+      
+      if (ownerAvatar) {
+        participants.push({ avatar: ownerAvatar, id: capsule.ownerId });
+        seenIds.add(capsule.ownerId);
+      }
     }
     
-    if (capsuleData.collaboratorIds && capsuleData.collaboratorIds.length > 0) {
-      capsuleData.collaboratorIds.forEach((collaboratorId) => {
-        const friend = friendsById[collaboratorId];
-        if (friend?.photoURL) {
-          avatars.push(friend.photoURL);
-        }
-      });
-    }
-    
-    return avatars;
-  }, [capsuleData.ownerPhotoURL, capsuleData.collaboratorIds, friendsById]);
+    capsule.collaboratorIds?.forEach((collaboratorId) => {
+      // Don't add the owner again if they are in the collaborator list
+      if (seenIds.has(collaboratorId)) return;
+      
+      let friendAvatar =
+        friendsById[collaboratorId]?.photoURL ||
+        collaboratorProfiles[collaboratorId]?.photoURL;
+      
+      // If the collaborator is the current user, use their avatar
+      if (!friendAvatar && user && collaboratorId === user.id) {
+        friendAvatar = user.photoURL;
+      }
+
+      if (friendAvatar) {
+        participants.push({ avatar: friendAvatar, id: collaboratorId });
+        seenIds.add(collaboratorId);
+      }
+    });
+    return participants;
+  }, [capsule, friendsById, user, collaboratorProfiles]);
   
   const progress = useMemo(() => {
     if (!capsule) return 0;
@@ -202,23 +237,29 @@ export default function EchoDetailScreen() {
   const handleMoreOptions = useCallback(() => {
     if (!capsule) return;
     const onHome = isVisibleOnHome(capsule.id);
+    const isLocked = capsule.status === "locked";
+    const isOwner = user?.id && capsule.ownerId ? capsule.ownerId === user.id : false;
+    const canEdit = isOwner && !isLocked;
     
     if (Platform.OS === "ios") {
-      const options = onHome 
-        ? ["Edit", "Remove from Home", "Cancel"]
-        : ["Edit", "Add to Home", "Cancel"];
+      const options: string[] = [];
+      if (canEdit) {
+        options.push("Edit");
+      }
+      options.push(onHome ? "Remove from Home" : "Add to Home");
+      options.push("Cancel");
       
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options,
-          cancelButtonIndex: 2,
-          destructiveButtonIndex: onHome ? 1 : undefined,
+          cancelButtonIndex: options.length - 1,
+          destructiveButtonIndex: onHome && canEdit ? 1 : undefined,
         },
         (buttonIndex) => {
-          if (buttonIndex === 0) {
+          const selected = options[buttonIndex];
+          if (selected === "Edit") {
             router.push({ pathname: "/(main)/echo/[id]/edit", params: { id: String(capsule.id) } });
-          } else if (buttonIndex === 1) {
-            if (onHome) {
+          } else if (selected === "Remove from Home") {
               Alert.alert(
                 "Remove from Home",
                 `Remove "${capsule.title}" from home screen? You can still find it in your library.`,
@@ -227,28 +268,26 @@ export default function EchoDetailScreen() {
                   { text: "Remove", style: "destructive", onPress: () => removeFromHome(capsule.id) },
                 ]
               );
-            } else {
+          } else if (selected === "Add to Home") {
               addToHome(capsule.id);
-            }
           }
         }
       );
     } else {
-      const buttons = onHome
-        ? [
-            { text: "Edit", onPress: () => router.push({ pathname: "/(main)/echo/[id]/edit", params: { id: String(capsule.id) } }) },
-            { text: "Remove from Home", onPress: () => removeFromHome(capsule.id), style: "destructive" as const },
-            { text: "Cancel", style: "cancel" as const },
-          ]
-        : [
-            { text: "Edit", onPress: () => router.push({ pathname: "/(main)/echo/[id]/edit", params: { id: String(capsule.id) } }) },
-            { text: "Add to Home", onPress: () => addToHome(capsule.id) },
-            { text: "Cancel", style: "cancel" as const },
-          ];
+      const buttons: { text: string; onPress?: () => void; style?: "destructive" | "cancel" }[] = [];
+      if (canEdit) {
+        buttons.push({ text: "Edit", onPress: () => router.push({ pathname: "/(main)/echo/[id]/edit", params: { id: String(capsule.id) } }) });
+      }
+      if (onHome) {
+        buttons.push({ text: "Remove from Home", onPress: () => removeFromHome(capsule.id), style: "destructive" });
+      } else {
+        buttons.push({ text: "Add to Home", onPress: () => addToHome(capsule.id) });
+      }
+      buttons.push({ text: "Cancel", style: "cancel" });
       
       Alert.alert("Echo Options", "", buttons, { cancelable: true });
     }
-  }, [capsule, isVisibleOnHome, addToHome, removeFromHome, router]);
+  }, [capsule, isVisibleOnHome, addToHome, removeFromHome, router, user?.id]);
 
   const handleDelete = useCallback(() => {
     if (!capsule) return;
@@ -287,6 +326,8 @@ export default function EchoDetailScreen() {
 
     const onHome = isVisibleOnHome(capsule.id);
     const favorited = isFavorite(capsule.id);
+    const isLocked = capsule.status === "locked";
+    const isOwner = user?.id && capsule.ownerId ? capsule.ownerId === user.id : false;
 
     const HeaderRight: React.FC = () => (
       <View style={styles.headerRight}>
@@ -309,12 +350,14 @@ export default function EchoDetailScreen() {
           <SwiftUI.Host style={styles.swiftUIHost}>
             <SwiftUI.ContextMenu>
               <SwiftUI.ContextMenu.Items>
+                {isOwner && !isLocked && (
                 <SwiftUI.Button
                   systemImage="pencil"
                   onPress={() => router.push({ pathname: "/(main)/echo/[id]/edit", params: { id: String(capsule.id) } })}
                 >
                   Edit
                 </SwiftUI.Button>
+                )}
                 <SwiftUI.Button
                   systemImage={onHome ? "house.fill" : "house"}
                   onPress={() => {
@@ -361,7 +404,7 @@ export default function EchoDetailScreen() {
     );
     HeaderRight.displayName = "HeaderRightButtons";
     return HeaderRight;
-  }, [capsule, isVisibleOnHome, isFavorite, toggleFavorite, handleMoreOptions, handleDelete, addToHome, removeFromHome, router, SwiftUI]);
+  }, [capsule, isVisibleOnHome, isFavorite, toggleFavorite, handleMoreOptions, handleDelete, addToHome, removeFromHome, router, SwiftUI, user?.id]);
 
   // Update navigation header when title or shadow changes
   useEffect(() => {
@@ -375,25 +418,19 @@ export default function EchoDetailScreen() {
     });
   }, [navigation, showHeaderTitle, uiState.showHeaderShadow, capsule?.title, HeaderRightButtons]);
 
-  // Fade in when correct data loads
-  useEffect(() => {
-    if (capsule && capsule.id === id) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      fadeAnim.setValue(0);
-    }
-  }, [capsule?.id, id, fadeAnim]);
-  
   // Pre-load images for faster display
   useEffect(() => {
     if (capsule?.imageUrl) {
       Image.prefetch(capsule.imageUrl);
     }
-  }, [capsule?.imageUrl]);
+    
+    // Prefetch participant avatars
+    collaboratorParticipants.forEach(p => {
+      if (p.avatar) {
+        Image.prefetch(p.avatar);
+      }
+    });
+  }, [capsule?.imageUrl, collaboratorParticipants]);
 
   // Show loading state while echoes are being loaded
   if (isLoading) {
@@ -420,15 +457,12 @@ export default function EchoDetailScreen() {
   // dev log removed to reduce terminal noise
   
   return (
-    <Animated.View key={id} style={[styles.container, { opacity: fadeAnim }]}>
+    <View key={id} style={styles.container}>
       {/* Key forces complete reset, opacity hides transition */}
       {/* Gradient overlay that scrolls up with content and stays in header */}
-      <ImageGradientOverlay 
+      <View 
         key={`gradient-${id}`}
-        echoId={capsule.id}
-        imageUrl={capsule.imageUrl}
-        height={800}
-        scrollY={uiState.scrollY}
+        style={[StyleSheet.absoluteFill, { backgroundColor: colors.black }]}
       />
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -461,7 +495,7 @@ export default function EchoDetailScreen() {
               startDate={startDate} 
               endDate={rightDate} 
               progress={progress} 
-              participants={collaboratorAvatars}
+              participants={collaboratorParticipants.map(p => p.avatar)}
               isPrivate={capsuleData.isPrivate}
               status={capsuleData.status}
             />
@@ -475,11 +509,11 @@ export default function EchoDetailScreen() {
               barWidth={barWidth}
               segmentWidth={segmentWidth}
               onLayout={setBarWidth}
-              allLocked={!isUnlocked}
+              allLocked={capsule.status === "locked"}
             />
             <EchoContentTabs
               key={id}
-              isLocked={!isUnlocked}
+              isLocked={capsule.status === "locked"}
               media={capsule.media}
               activities={activities}
               scrollViewRef={scrollViewRef}
@@ -522,7 +556,7 @@ export default function EchoDetailScreen() {
         initialIndex={uiState.selectedMediaIndex}
         onClose={() => setUiState(prev => ({ ...prev, galleryVisible: false }))}
       />
-    </Animated.View>
+    </View>
   );
 }
 

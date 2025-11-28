@@ -1,10 +1,10 @@
 import BottomBarBackground from "@/components/BottomBarBackground";
+import UserAvatar from "@/components/ui/UserAvatar";
 import useDrawerPair from "@/hooks/useDrawerPair";
 import { colors, radii, sizes } from "@/theme/theme";
-import { useAuth } from "@/utils/authContext";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo } from "react";
-import { Image, PixelRatio, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { PixelRatio, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 
 type Props = {
@@ -21,7 +21,6 @@ function FloatingBottomBar({
   const { left: leftProgress, right: rightProgress } = useDrawerPair();
   const { width: screenWidth } = useWindowDimensions();
   const onePx = 1 / PixelRatio.get();
-  const { user } = useAuth();
 
   const plusAnimated = useAnimatedStyle(() => {
     const lp = leftProgress?.value ?? 0;
@@ -95,11 +94,7 @@ function FloatingBottomBar({
       <View style={styles.bar}>
         <BottomBarBackground />
         <Pressable onPress={onPressProfile} style={styles.sideButton} hitSlop={12} accessibilityRole="button" accessibilityLabel="Open profile">
-          <Image
-            source={{ uri: user?.photoURL || "https://picsum.photos/seed/arjun-bishnoi/400/400" }}
-            style={styles.avatarImage}
-            resizeMode="cover"
-          />
+          <UserAvatar size={22} />
         </Pressable>
 
         <Animated.View style={[styles.plusButton, plusAnimated]}>

@@ -2,8 +2,9 @@ import { getDrawerCoverSizing } from "@/components/drawer/coverSizing";
 import { GestureConfig } from "@/config/ui";
 import { HERO_HEIGHT } from "@/constants/dimensions";
 import { colors, radii, spacing } from "@/theme/theme";
+import { Image } from "expo-image";
 import { memo, useMemo } from "react";
-import { Dimensions, Image, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Dimensions, Platform, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 
@@ -57,7 +58,13 @@ function LibraryItem({
     <View style={styles.inner}>
       <View style={[styles.leftCluster, { width: cw }]}>
         {thumbnailUri ? (
-          <Image source={{ uri: thumbnailUri }} style={[styles.thumbnail, { width: cw, borderRadius: sizing.radius }]} />
+          <Image
+            source={{ uri: thumbnailUri }}
+            style={[styles.thumbnail, { width: cw, borderRadius: sizing.radius }]}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={200}
+          />
         ) : (
           <View style={[styles.thumbnail, { width: cw, borderRadius: sizing.radius, backgroundColor: "rgba(255,255,255,0.18)" }]} />
         )}

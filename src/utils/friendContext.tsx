@@ -27,8 +27,8 @@ export function FriendProvider({ children }: { children: React.ReactNode }) {
       const data = await UserService.getFriends(user.id);
       setFriends(data);
     } catch (error) {
-      console.error("Failed to load friends:", error);
-      setFriends([]);
+      // Do NOT wipe friends on error - keep stale data
+      // setFriends([]); 
     } finally {
       setIsLoading(false);
     }
@@ -61,8 +61,15 @@ export function FriendProvider({ children }: { children: React.ReactNode }) {
 
 export function useFriends() {
   const context = useContext(FriendContext);
+  // Gracefully return a dummy context instead of throwing if used outside provider
+  // This is safer for deep links or screens that might mount before provider
   if (!context) {
-    throw new Error("useFriends must be used within FriendProvider");
+    return {
+      friends: [],
+      friendsById: {},
+      isLoading: false,
+      refresh: async () => {},
+    };
   }
   return context;
 }

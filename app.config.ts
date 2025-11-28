@@ -29,6 +29,7 @@ const config: ExpoConfig = {
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
   ios: {
+    icon: "./assets/echoes-ios-light.icon",
     bundleIdentifier: "com.arjunbishnoi.echoes",
     supportsTablet: true,
     infoPlist: {
@@ -92,7 +93,8 @@ const config: ExpoConfig = {
       },
     ],
     "expo-web-browser",
-    "expo-apple-authentication",
+    // "expo-apple-authentication", // Removed for personal developer account
+    "expo-sqlite",
   ],
   experiments: {
     typedRoutes: true,

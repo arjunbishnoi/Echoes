@@ -1,4 +1,3 @@
-import IconButton from "@/components/ui/IconButton";
 import { colors, radii, spacing } from "@/theme/theme";
 import { FriendStorage } from "@/utils/friendStorage";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -112,12 +111,15 @@ export default function EditFriendScreen() {
         </Pressable>
       ),
       headerRight: () => (
-        <IconButton
-          icon="checkmark"
+        <Pressable
           onPress={handleSave}
-          color={colors.white}
-          style={{ backgroundColor: colors.blue }}
-        />
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Save"
+          style={styles.saveButton}
+        >
+          <Text style={styles.saveText}>Save</Text>
+        </Pressable>
       ),
     });
   }, [navigation, handleSave, handleCancel]);
@@ -236,6 +238,15 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     color: colors.textPrimary,
+    fontWeight: "600",
+    fontSize: 17,
+  },
+  saveButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 2,
+  },
+  saveText: {
+    color: colors.white,
     fontWeight: "600",
     fontSize: 17,
   },

@@ -1,10 +1,11 @@
 import EmptyState from "@/components/ui/EmptyState";
+import Avatar from "@/components/ui/Avatar";
 import { colors, spacing } from "@/theme/theme";
 import type { UserProfile } from "@/types/user";
 import { useFriends } from "@/utils/friendContext";
 import { useRouter } from "expo-router";
 import { useCallback } from "react";
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
 const AVATAR_SIZE = 56;
 
@@ -34,11 +35,11 @@ export default function FriendsScreen() {
         accessibilityRole="button"
         accessibilityLabel={`View ${item.displayName}'s profile`}
       >
-        <Image
-          source={{
-            uri: item.photoURL || `https://picsum.photos/seed/${item.id}/200/200`,
-          }}
-          style={styles.avatar}
+        <Avatar
+          uri={item.photoURL}
+          userId={item.id}
+          size={AVATAR_SIZE}
+          showFallback={true}
         />
         <View style={styles.friendInfo}>
           <Text style={styles.friendName}>{item.displayName}</Text>

@@ -9,6 +9,7 @@ import { EchoDraftProvider } from "@/utils/echoDraft";
 import { EchoStorage } from "@/utils/echoStorage";
 import { FriendProvider } from "@/utils/friendContext";
 import { HomeEchoProvider } from "@/utils/homeEchoContext";
+import { SyncService } from "@/utils/services/syncService";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as FileSystem from "expo-file-system";
 import * as ExpoFont from "expo-font";
@@ -127,6 +128,10 @@ export default function RootLayout() {
           EchoStorage.initialize(),
           ActivityStorage.initialize(),
         ]);
+        
+        // Try to sync pending ops on startup
+        SyncService.processPendingOps().catch(console.error);
+        
       } catch (error) {
         if (__DEV__) console.error("Failed to initialize storage:", error);
       }
@@ -161,6 +166,12 @@ export default function RootLayout() {
               >
                 <Stack.Screen 
                   name="(auth)/sign-in" 
+                  options={{ 
+                    headerShown: false,
+                  }} 
+                />
+                <Stack.Screen 
+                  name="(auth)/personalization" 
                   options={{ 
                     headerShown: false,
                     animation: "fade",

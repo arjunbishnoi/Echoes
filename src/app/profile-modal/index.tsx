@@ -1,17 +1,13 @@
-import { UnifiedFormSection } from "@/components/forms/UnifiedForm";
-import { UnifiedFormRow } from "@/components/forms/UnifiedFormRow";
+import UserAvatar from "@/components/ui/UserAvatar";
 import { colors, radii, spacing } from "@/theme/theme";
 import { useAuth } from "@/utils/authContext";
-import Constants from "expo-constants";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useRouter, type Href } from "expo-router";
-import { useState } from "react";
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 export default function ProfileModal() {
   const router = useRouter();
   const { user, isGuest, signOut } = useAuth();
-  const [isDarkTheme, setIsDarkTheme] = useState(true);
-  const appVersion = Constants.expoConfig?.version ?? "1.0.0";
   
   const displayNameUI = isGuest
     ? "Guest"
@@ -19,7 +15,6 @@ export default function ProfileModal() {
   const usernameUI = isGuest
     ? "guest"
     : user?.username || user?.email?.split("@")[0] || "echoes-user";
-  const avatarUri = !isGuest ? user?.photoURL : undefined;
 
   const handleSignOut = async () => {
     Alert.alert("Sign out", "Are you sure you want to sign out?", [
@@ -46,23 +41,23 @@ export default function ProfileModal() {
 
   const showProfileActions = !isGuest;
 
-  const guestControlTitleStyle = isGuest ? styles.guestFormRowTitle : undefined;
-
   return (
+    <View style={styles.container}>
     <ScrollView
-      style={styles.container}
+        style={styles.scrollView}
       contentContainerStyle={styles.contentContainer}
       contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
     >
       <View style={styles.profileHeader}>
-        {avatarUri ? (
-          <Image source={{ uri: avatarUri }} style={styles.avatar} />
-        ) : (
+        {isGuest ? (
           <View style={[styles.avatar, styles.guestAvatar]} />
+        ) : (
+          <UserAvatar size={160} />
         )}
         <View style={styles.userInfo}>
           <Text style={styles.name}>{displayNameUI}</Text>
-          <Text style={styles.username}>{usernameUI}</Text>
+            <Text style={styles.username}>@{usernameUI}</Text>
         </View>
       </View>
 
@@ -78,87 +73,66 @@ export default function ProfileModal() {
       )}
 
       {showProfileActions && (
-        <UnifiedFormSection style={styles.sectionSpacing}>
-          <UnifiedFormRow
-            title="Edit Profile"
-            leftIcon="person-outline"
-            systemImage="person.circle"
-            showChevron
+          <View style={styles.sectionsContainer}>
+            {/* Edit Profile Section */}
+            <Pressable
+              style={styles.modernSection}
             onPress={() => router.push("/profile-modal/edit" as Href)}
+              accessibilityRole="button"
             accessibilityLabel="Edit Profile"
-          />
-          <UnifiedFormRow
-            title="Friends"
-            leftIcon="people-outline"
-            systemImage="person.2"
-            showChevron
+            >
+              <View style={styles.sectionContent}>
+                <View style={styles.sectionLeft}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="pencil-outline" size={24} color={colors.white} />
+                  </View>
+                  <Text style={styles.sectionTitle}>Edit Profile</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              </View>
+            </Pressable>
+
+            {/* Friends Section */}
+            <Pressable
+              style={styles.modernSection}
             onPress={() => router.push("/profile-modal/friends" as Href)}
+              accessibilityRole="button"
             accessibilityLabel="Friends"
-          />
-        </UnifiedFormSection>
-      )}
+            >
+              <View style={styles.sectionContent}>
+                <View style={styles.sectionLeft}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="people-outline" size={24} color={colors.white} />
+                  </View>
+                  <Text style={styles.sectionTitle}>Friends</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              </View>
+            </Pressable>
 
-      <UnifiedFormSection style={[styles.sectionSpacing, isGuest && styles.pillFormSection]}>
-        <UnifiedFormRow
-          title="Echoes Library"
-          leftIcon="albums-outline"
-          systemImage="square.stack.3d.up"
-          showChevron
-          onPress={() => router.push("/echoes" as Href)}
-          accessibilityLabel="Echoes Library"
-          titleStyle={guestControlTitleStyle}
-        />
-        <UnifiedFormRow
-          title={`Theme: ${isDarkTheme ? "Dark" : "Light"}`}
-          leftIcon="moon-outline"
-          switch
-          switchValue={isDarkTheme}
-          onSwitchChange={setIsDarkTheme}
-          titleStyle={guestControlTitleStyle}
-        />
-      </UnifiedFormSection>
-
-      <UnifiedFormSection
-        title="About"
-        style={[styles.sectionSpacing, isGuest && styles.pillFormSection]}
-      >
-        <UnifiedFormRow
-          title="How it Works"
-          leftIcon="help-circle-outline"
-          systemImage="questionmark.circle"
-          showChevron
-          onPress={() => Alert.alert("How it Works", "Coming soon")}
-          accessibilityLabel="How it Works"
-          titleStyle={guestControlTitleStyle}
-        />
-        <UnifiedFormRow
-          title="Terms of Use"
-          leftIcon="document-text-outline"
-          systemImage="doc.text"
-          showChevron
-          onPress={() => Alert.alert("Terms", "Terms of use coming soon")}
-          accessibilityLabel="Terms of Use"
-          titleStyle={guestControlTitleStyle}
-        />
-        <UnifiedFormRow
-          title="Privacy Policy"
-          leftIcon="shield-checkmark-outline"
-          systemImage="hand.raised"
-          showChevron
-          onPress={() => Alert.alert("Privacy", "Privacy policy coming soon")}
-          accessibilityLabel="Privacy Policy"
-          titleStyle={guestControlTitleStyle}
-        />
-        <UnifiedFormRow
-          title="Echoes for iOS"
-          leftIcon="phone-portrait-outline"
-          systemImage="iphone"
-          valueText={appVersion}
-          titleStyle={guestControlTitleStyle}
-        />
-      </UnifiedFormSection>
+            {/* Add Friends Section */}
+            <Pressable
+              style={styles.modernSection}
+              onPress={() => router.push("/profile-modal/add-friends" as Href)}
+              accessibilityRole="button"
+              accessibilityLabel="Add Friends"
+            >
+              <View style={styles.sectionContent}>
+                <View style={styles.sectionLeft}>
+                  <View style={styles.iconContainer}>
+                    <Ionicons name="person-add-outline" size={24} color={colors.white} />
+                  </View>
+                  <Text style={styles.sectionTitle}>Add Friends</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              </View>
+            </Pressable>
+          </View>
+        )}
+      </ScrollView>
 
       {!isGuest && (
+        <View style={styles.logoutContainer}>
         <Pressable
           onPress={handleSignOut}
           accessibilityRole="button"
@@ -167,8 +141,9 @@ export default function ProfileModal() {
         >
           <Text style={styles.logoutText}>Sign out</Text>
         </Pressable>
+        </View>
       )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -177,10 +152,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.modalSurface,
   },
+  scrollView: {
+    flex: 1,
+  },
   contentContainer: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.xxl,
+    paddingBottom: spacing.lg,
   },
   profileHeader: {
     flexDirection: "column",
@@ -210,7 +188,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontSize: 16,
     textAlign: "center",
-    marginBottom: spacing.lg,
   },
   userInfo: {
     marginTop: spacing.sm,
@@ -232,18 +209,51 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
   },
-  sectionSpacing: {
-    marginBottom: spacing.xl,
+  sectionsContainer: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
   },
-  pillFormSection: {
+  modernSection: {
+    backgroundColor: colors.surface,
     borderRadius: radii.pill,
+    marginBottom: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.lg,
   },
-  guestFormRowTitle: {
-    fontSize: 15,
-    fontWeight: "400",
+  sectionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    width: "100%",
+  },
+  sectionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+  logoutContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
+    backgroundColor: colors.modalSurface,
   },
   logoutButton: {
-    marginTop: spacing.lg,
     backgroundColor: colors.white,
     borderRadius: radii.pill,
     alignItems: "center",

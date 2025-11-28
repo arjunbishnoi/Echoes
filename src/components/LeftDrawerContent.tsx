@@ -4,11 +4,15 @@ import { ContentWidth, DrawerScroll } from "@/components/DrawerContentLayout";
 import NotificationsBottomBar from "@/components/NotificationsBottomBar";
 import RightDrawerSearchBar from "@/components/RightDrawerSearchBar";
 import TopGradient from "@/components/TopGradient";
+import { useEchoActivities } from "@/hooks/useEchoActivities";
+import { useRefresh } from "@/hooks/useRefresh";
 import { colors, sizes, spacing } from "@/theme/theme";
 import type { NotifKey } from "@/types/notifications";
+import { useAuth } from "@/utils/authContext";
+import { EchoStorage } from "@/utils/echoStorage";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type LeftDrawerContentProps = {
@@ -18,12 +22,34 @@ type LeftDrawerContentProps = {
 function LeftDrawerContent({ insetTop }: LeftDrawerContentProps) {
   const insets = useSafeAreaInsets();
   const top = insetTop ?? insets.top;
+  const { user } = useAuth();
   const [filter, setFilter] = useState<NotifKey>("all");
   const [query, setQuery] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const scrollRef = useRef<any>(null);
   const topBarOffset = top;
-  const topPadding = topBarOffset + sizes.floatingBar.height + spacing.xl + spacing.md;
+  const topPadding = topBarOffset + sizes.floatingBar.height + spacing.md;
+  // TopGradient height: FLOATING_BAR_BOTTOM_OFFSET + FLOATING_BAR_HEIGHT + EXTRA_TOP_GRADIENT (25)
+  const topGradientHeight = sizes.floatingBar.bottomOffset + sizes.floatingBar.height + 25;
+  const refreshControlOffset = topGradientHeight + (top > 0 ? top - 35 : -30); // Even more reduced to move it higher
+  const { refreshing, onRefresh } = useRefresh();
+  const { refresh: refreshActivities } = useEchoActivities(undefined, { defer: false });
+  
+  const handleRefresh = async () => {
+    onRefresh();
+    // Pull latest echo activities (notifications) from remote
+    if (user?.id) {
+      try {
+        await EchoStorage.refreshActivitiesFromRemote(user.id);
+      } catch (error) {
+        if (__DEV__) {
+          console.warn("[LeftDrawer] Failed to refresh activities from remote", error);
+        }
+      }
+    }
+    // Force local activity consumers to update
+    refreshActivities();
+  };
   
   const leftTabTitle = (() => {
     if (query.trim().length > 0) return "Search Results";
@@ -41,13 +67,33 @@ function LeftDrawerContent({ insetTop }: LeftDrawerContentProps) {
     return "all";
   })();
 
+
   return (
     <View style={styles.container}> 
-      <DrawerScroll scrollRef={scrollRef} topPadding={topPadding} bottomPadding={sizes.list.bottomPadding} indicatorSide="right">
+      <DrawerScroll 
+        scrollRef={scrollRef} 
+        topPadding={topPadding} 
+        bottomPadding={sizes.list.bottomPadding} 
+        indicatorSide="right"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.textPrimary}
+            titleColor={colors.textPrimary}
+            progressBackgroundColor={colors.surface}
+            colors={[colors.textPrimary]}
+            progressViewOffset={refreshControlOffset}
+          />
+        }
+      >
         <View style={styles.spacer} />
         <ContentWidth>
+          <View style={{ height: spacing.sm }} />
+          <Text style={styles.sectionTitle}>{leftTabTitle}</Text>
+          {/* Single, standardized gap between header and first notification for all tabs */}
           <View style={{ height: spacing.xl }} />
-          <NotificationsList type={mappedType} />
+          <NotificationsList type={mappedType} query={query} />
           <View style={{ height: spacing.xl }} />
         </ContentWidth>
       </DrawerScroll>
@@ -77,9 +123,6 @@ function LeftDrawerContent({ insetTop }: LeftDrawerContentProps) {
               <Ionicons name="ellipsis-vertical" size={20} color={colors.textPrimary} />
             </Pressable>
           )}
-        </View>
-        <View style={styles.headerRow}>
-          <Text style={styles.sectionTitle}>{leftTabTitle}</Text>
         </View>
       </View>
       <BottomGradient />
@@ -119,11 +162,6 @@ const styles = StyleSheet.create({
     right: 16,
   },
   topBarRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  headerRow: {
-    marginTop: spacing.xl,
     flexDirection: "row",
     alignItems: "center",
   },

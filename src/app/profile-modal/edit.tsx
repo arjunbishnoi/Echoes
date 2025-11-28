@@ -1,61 +1,313 @@
-import { FormRow, FormSection } from "@/components/IOSForm";
+import UserAvatar from "@/components/ui/UserAvatar";
 import { colors, spacing } from "@/theme/theme";
+import type { User } from "@/types/user";
+import { useAuth } from "@/utils/authContext";
+import { StorageService } from "@/utils/services/storageService";
+import { UserService } from "@/utils/services/userService";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BlurView } from "expo-blur";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import { Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
+import { router, useNavigation } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 export default function EditProfileScreen() {
   const navigation = useNavigation();
-  const insets = useSafeAreaInsets();
+  const { user, updateProfile } = useAuth();
 
-  // UI-only defaults (no backend changes per request)
-  const avatarUri = "https://picsum.photos/seed/arjun-bishnoi/400/400";
-  const [displayName, setDisplayName] = useState("Arjun Bishnoi");
-  const [username, setUsername] = useState("arjun");
-  const params = useLocalSearchParams<{ displayName?: string; username?: string }>();
+  // Form state
+  const [displayName, setDisplayName] = useState(user?.displayName || "");
+  const [username, setUsername] = useState(user?.username || "");
+  const [profileImage, setProfileImage] = useState(user?.photoURL || null);
+  
+  // Loading and validation state
+  const [isLoading, setIsLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [isCheckingUsername, setIsCheckingUsername] = useState(false);
+  
+  // Refs for input focus management
+  const usernameInputRef = useRef<TextInput>(null);
 
+  // Update navigation header with Cancel and Save
   useEffect(() => {
-    if (typeof params.displayName === 'string') {
-      setDisplayName(params.displayName);
+    navigation.setOptions({
+      title: "Edit Profile",
+      headerLeft: () => (
+        <Pressable
+          onPress={handleCancel}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel"
+          style={styles.cancelButton}
+        >
+          <Text style={styles.cancelText}>Cancel</Text>
+        </Pressable>
+      ),
+      headerRight: () => (
+        <Pressable
+          onPress={handleSaveProfile}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Save"
+          disabled={isLoading}
+          style={styles.saveButton}
+        >
+          <Text style={[styles.saveText, isLoading && styles.disabledText]}>
+            {isLoading ? "Saving..." : "Save"}
+          </Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation, isLoading]);
+
+  const validateUsername = async (usernameValue: string): Promise<boolean> => {
+    if (__DEV__) {
+      console.log("[EditProfile] Validating username:", usernameValue);
     }
-    if (typeof params.username === 'string') {
-      setUsername(params.username);
+
+    if (!usernameValue.trim()) {
+      setUsernameError("Username is required");
+      return false;
     }
-  }, [params.displayName, params.username]);
-  const [editingField, setEditingField] = useState<null | "name" | "username">(null);
-  const [tempValue, setTempValue] = useState("");
 
-  useEffect(() => {
-    navigation.setOptions({ title: "Edit Profile" });
-  }, [navigation]);
+    if (usernameValue.length < 3) {
+      setUsernameError("Username must be at least 3 characters");
+      return false;
+    }
 
-  const handleAvatarEdit = useCallback(() => {
-    Alert.alert("Change Profile Photo", "Coming soon (local only)", [
-      { text: "OK" },
-    ]);
-  }, []);
+    if (usernameValue.length > 20) {
+      setUsernameError("Username must be less than 20 characters");
+      return false;
+    }
 
+    if (!/^[a-zA-Z0-9_]+$/.test(usernameValue)) {
+      setUsernameError("Username can only contain letters, numbers, and underscores");
+      return false;
+    }
 
-  const cancelEdit = useCallback(() => {
-    setEditingField(null);
-  }, []);
+    // Skip uniqueness check if username hasn't changed
+    if (usernameValue === user?.username) {
+      if (__DEV__) {
+        console.log("[EditProfile] Username unchanged, validation passed");
+      }
+      setUsernameError(null);
+      return true;
+    }
 
-  const saveEdit = useCallback(() => {
-    if (editingField === "name") setDisplayName(tempValue.trim() || displayName);
-    if (editingField === "username") setUsername(tempValue.trim() || username);
-    setEditingField(null);
-  }, [editingField, tempValue, displayName, username]);
+    // Check if username is unique
+    setIsCheckingUsername(true);
+    try {
+      const isAvailable = await UserService.isUsernameAvailable(usernameValue, user?.id);
+      
+      if (!isAvailable) {
+        setUsernameError("Username is already taken");
+        return false;
+      }
+
+      if (__DEV__) {
+        console.log("[EditProfile] Username validation passed");
+      }
+      setUsernameError(null);
+      return true;
+    } catch (error) {
+      console.error("[EditProfile] Username validation error:", error);
+      setUsernameError("Unable to check username availability");
+      return false;
+    } finally {
+      setIsCheckingUsername(false);
+    }
+  };
+
+  const handleUsernameChange = (text: string) => {
+    const cleanedText = text.toLowerCase().replace(/[^a-zA-Z0-9_]/g, "");
+    setTempUsername(cleanedText);
+    setUsernameError(null);
+  };
+
+  const handleAvatarEdit = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please grant camera roll permissions to change your profile picture."
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setProfileImage(result.assets[0].uri);
+        // Auto-save profile image
+        await saveProfileImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to select image. Please try again.");
+    }
+  };
+
+  const saveProfileImage = async (imageUri: string) => {
+    try {
+      setIsLoading(true);
+      
+      if (!user?.id) throw new Error("User ID not found");
+
+      if (__DEV__) {
+        console.log("[EditProfile] Uploading new profile image...");
+      }
+
+      const downloadURL = await StorageService.uploadProfilePhoto(
+        user.id,
+        imageUri,
+        (progress) => {
+          if (__DEV__) console.log(`[EditProfile] Upload progress: ${progress}%`);
+        }
+      );
+
+      if (__DEV__) {
+        console.log("[EditProfile] Image uploaded, URL:", downloadURL);
+      }
+
+      await updateProfile({ photoURL: downloadURL });
+      Alert.alert("Success", "Profile picture updated successfully!");
+    } catch (error) {
+      console.error("Error updating profile image:", error);
+      Alert.alert("Error", "Failed to update profile picture. Please try again.");
+      setProfileImage(user?.photoURL || null); // Revert on error
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancel = useCallback(() => {
+    // Check if there are unsaved changes
+    const hasChanges = 
+      displayName.trim() !== (user?.displayName || "") ||
+      username !== (user?.username || "");
+
+    if (hasChanges) {
+      Alert.alert(
+        "Discard Changes?",
+        "You have unsaved changes. Are you sure you want to discard them?",
+        [
+          { text: "Keep Editing", style: "cancel" },
+          { 
+            text: "Discard", 
+            style: "destructive",
+            onPress: () => {
+              // Reset form to original values
+              setDisplayName(user?.displayName || "");
+              setUsername(user?.username || "");
+              setUsernameError(null);
+              router.back();
+            }
+          }
+        ]
+      );
+    } else {
+      router.back();
+    }
+  }, [displayName, username, user, router]);
+
+  const handleSaveProfile = useCallback(async () => {
+    setIsLoading(true);
+    
+    // Clear any existing errors first
+    setUsernameError(null);
+    
+    try {
+      // Basic validation
+      if (!username.trim()) {
+        setUsernameError("Username is required");
+        setIsLoading(false);
+        return;
+      }
+
+      // Only validate username uniqueness if it actually changed
+      if (username !== user?.username) {
+        if (__DEV__) {
+          console.log("[EditProfile] Username changed, validating:", username, "vs", user?.username);
+        }
+        
+        const isValid = await validateUsername(username);
+        if (!isValid) {
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        if (__DEV__) {
+          console.log("[EditProfile] Username unchanged, skipping validation");
+        }
+      }
+
+      // Prepare profile data for update
+      const profileData: Partial<User> = {};
+      
+      // Only include changed fields
+      if (displayName.trim() !== (user?.displayName || "")) {
+        if (__DEV__) {
+          console.log("[EditProfile] Display name changed:", displayName.trim(), "vs", user?.displayName);
+        }
+        profileData.displayName = displayName.trim();
+      }
+      
+      if (username !== (user?.username || "")) {
+        if (__DEV__) {
+          console.log("[EditProfile] Username changed:", username, "vs", user?.username);
+        }
+        profileData.username = username;
+      }
+
+      // Update profile if there are changes
+      if (Object.keys(profileData).length > 0) {
+        if (__DEV__) {
+          console.log("[EditProfile] Saving profile changes:", profileData);
+        }
+        
+        await updateProfile(profileData);
+        
+        if (__DEV__) {
+          console.log("[EditProfile] Profile update completed successfully");
+        }
+
+        Alert.alert("Success", "Profile updated successfully!", [
+          { text: "OK", onPress: () => router.back() }
+        ]);
+      } else {
+        // No changes made, just go back
+        if (__DEV__) {
+          console.log("[EditProfile] No changes detected, going back");
+        }
+        router.back();
+      }
+    } catch (error) {
+      console.error("[EditProfile] Error updating profile:", error);
+      Alert.alert("Error", "Failed to update profile. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [displayName, username, user, updateProfile, validateUsername, router]);
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Avatar with edit pill below (same as Edit Echo style) */}
+      <ScrollView 
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        automaticallyAdjustKeyboardInsets={true} // iOS 17+ automatic keyboard handling
+        contentInsetAdjustmentBehavior="automatic" // Better iOS keyboard handling
+      >
+        {/* Avatar with edit pill below */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarWrap}>
-            <Image source={{ uri: avatarUri }} style={styles.avatar} />
+            <UserAvatar size={AVATAR_SIZE} />
           </View>
           <Pressable
             onPress={handleAvatarEdit}
@@ -63,87 +315,83 @@ export default function EditProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Edit profile photo"
             hitSlop={8}
+            disabled={isLoading}
           >
             <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
             <View style={styles.editPillOverlay} />
             <View style={styles.editPillContent}>
-              <Ionicons name="pencil" size={16} color={colors.white} />
-              <Text style={styles.editPillText}>Edit</Text>
+              <Ionicons name="camera" size={16} color={colors.white} />
+              <Text style={styles.editPillText}>Change Photo</Text>
             </View>
           </Pressable>
         </View>
 
-        {/* Fields */}
-        <FormSection title="Display Name">
-          <FormRow
-            title={displayName}
-            onPress={() =>
-              router.push({ pathname: "/profile-modal/edit-name", params: { displayName } })
-            }
-            accessibilityLabel="Edit display name"
-            showChevron
-          />
-        </FormSection>
-
-        <FormSection title="Username">
-          <FormRow
-            title={`@${username}`}
-            onPress={() =>
-              router.push({
-                pathname: "/profile-modal/edit-username",
-                params: { username },
-              })
-            }
-            accessibilityLabel="Edit username"
-            showChevron
-          />
-        </FormSection>
-
-        <FormSection title="Choose Main Colour">
-          <View style={styles.colorRow}>
-            {(["#0A84FF", "#5856D6", "#FF375F", "#34C759", "#FF9F0A", "#64D2FF", "#AF52DE"] as const).map((c) => (
-              <Pressable key={c} accessibilityRole="button" hitSlop={8} style={[styles.colorSwatch, { backgroundColor: c }]} />
-            ))}
+        {/* Display Name Field */}
+        <View style={styles.pillSection}>
+          <Text style={styles.pillSectionTitle}>Display Name</Text>
+          <View style={styles.pillContainer}>
+            <TextInput
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Enter your display name"
+              placeholderTextColor={colors.textSecondary}
+              style={styles.pillInput}
+              maxLength={50}
+              autoCapitalize="words"
+              returnKeyType="next"
+              onSubmitEditing={() => {
+                // Focus next input (username) when user presses "next"
+                usernameInputRef.current?.focus();
+              }}
+              blurOnSubmit={false}
+            />
           </View>
-        </FormSection>
+          </View>
+
+        {/* Username Field */}
+        <View style={styles.pillSection}>
+          <Text style={styles.pillSectionTitle}>Username</Text>
+          <View style={styles.pillContainer}>
+            <Text style={styles.atSymbol}>@</Text>
+            <TextInput
+              ref={usernameInputRef}
+              value={username}
+              onChangeText={(text) => {
+                const cleanedText = text.toLowerCase().replace(/[^a-zA-Z0-9_]/g, "");
+                setUsername(cleanedText);
+                // Clear error when user starts typing
+                if (usernameError) {
+                  setUsernameError(null);
+                }
+              }}
+              placeholder="username"
+              placeholderTextColor={colors.textSecondary}
+              style={styles.pillUsernameInput}
+              maxLength={20}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                // Dismiss keyboard when user presses "done"
+                usernameInputRef.current?.blur();
+              }}
+            />
+            {isCheckingUsername && (
+              <View style={styles.loadingIndicator}>
+                <Ionicons name="hourglass" size={16} color={colors.textSecondary} />
+              </View>
+            )}
+          </View>
+          {usernameError && (
+            <Text style={styles.errorText}>{usernameError}</Text>
+          )}
+          <Text style={styles.helperText}>
+            3-20 characters, letters, numbers, and underscores only
+          </Text>
+        </View>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
-
-      {/* Edit modal with top edge actions (new modal) */}
-      <Modal
-        visible={!!editingField}
-        transparent
-        animationType="fade"
-        onRequestClose={cancelEdit}
-        statusBarTranslucent
-      >
-        <View style={styles.nativeModalContainer}>
-          <View style={[styles.nativeModalHeader, { paddingTop: insets.top + spacing.md }]}> 
-            <Pressable onPress={cancelEdit} accessibilityRole="button" hitSlop={12}>
-              <Text style={styles.nativeBtn}>Cancel</Text>
-            </Pressable>
-            <Text style={styles.nativeTitle}>{editingField === "name" ? "Edit Display Name" : "Edit Username"}</Text>
-            <Pressable onPress={saveEdit} accessibilityRole="button" hitSlop={12}>
-              <Text style={[styles.nativeBtn, styles.nativeSave]}>Save</Text>
-            </Pressable>
-          </View>
-          <View style={[styles.nativeBody, { paddingBottom: insets.bottom + spacing.lg }]}>
-            <TextInput
-              autoFocus
-              value={tempValue}
-              onChangeText={setTempValue}
-              placeholder={editingField === "name" ? "Enter display name" : "Enter username"}
-              placeholderTextColor={colors.textSecondary}
-              style={styles.modalInput}
-              returnKeyType="done"
-              onSubmitEditing={saveEdit}
-              autoCapitalize={editingField === "username" ? "none" : undefined}
-              autoCorrect={false}
-            />
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -156,13 +404,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.modalSurface,
   },
   content: {
-    paddingTop: spacing.xxl + spacing.sm - 5,
+    flexGrow: 1,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.xxl,
   },
   avatarSection: {
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: spacing.xxl + spacing.xl,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.lg,
   },
   avatarWrap: {
@@ -172,19 +421,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatar: {
-    width: AVATAR_SIZE,
-    height: AVATAR_SIZE,
-    borderRadius: AVATAR_SIZE / 2,
-    backgroundColor: colors.surface,
-  },
   editPillButton: {
     marginTop: spacing.md,
     marginBottom: spacing.lg,
     alignSelf: "center",
-    height: 28,
-    paddingHorizontal: 10,
-    borderRadius: 14,
+    height: 32,
+    paddingHorizontal: 12,
+    borderRadius: 16,
     backgroundColor: "rgba(0,0,0,0.12)",
     overflow: "hidden",
     alignItems: "center",
@@ -201,121 +444,92 @@ const styles = StyleSheet.create({
   editPillContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 6,
   },
   editPillText: {
     color: colors.white,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
   },
-  fieldCardInner: {
+  pillSection: {
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  pillSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
+    paddingHorizontal: spacing.sm,
+  },
+  pillContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: 25, // Nice rounded pill shape
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-  },
-  inlineInput: {
-    backgroundColor: colors.background,
-    color: colors.textPrimary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 8,
+    minHeight: 50,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.surfaceBorder,
+  },
+  pillInput: {
+    flex: 1,
     fontSize: 17,
+    color: colors.textPrimary,
+    paddingVertical: 0, // Remove default padding for better alignment
   },
-  usernameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  atPrefix: {
+  atSymbol: {
     color: colors.textSecondary,
     fontSize: 17,
-    marginRight: spacing.xs,
+    fontWeight: "500",
+    marginRight: 6,
   },
-  colorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+  pillUsernameInput: {
+    flex: 1,
+    fontSize: 17,
+    color: colors.textPrimary,
+    paddingVertical: 0, // Remove default padding for better alignment
   },
-  colorSwatch: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(255,255,255,0.25)",
+  loadingIndicator: {
+    marginLeft: spacing.sm,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: 14,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    lineHeight: 18,
+  },
+  helperText: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    lineHeight: 18,
   },
   bottomSpacer: {
     height: spacing.xxl,
   },
-  modalSheet: {
-    flex: 1,
-    backgroundColor: colors.modalSurface,
-    borderTopLeftRadius: Platform.OS === "ios" ? 16 : 0,
-    borderTopRightRadius: Platform.OS === "ios" ? 16 : 0,
-    overflow: "hidden",
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 2,
   },
-  nativeModalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.9)',
-  },
-  nativeModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
-  },
-  nativeBtn: {
-    color: colors.white,
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  nativeSave: {
-    color: colors.blue,
-  },
-  nativeTitle: {
-    color: colors.white,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  nativeBody: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-  },
-  modalTopBar: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.md,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  modalTopBarBtn: {
+  cancelText: {
     color: colors.textPrimary,
-    fontSize: 17,
     fontWeight: "600",
-  },
-  modalTopBarSave: {
-    color: colors.blue,
-  },
-  modalTopBarTitle: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  modalBody: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-  },
-  modalInput: {
-    backgroundColor: colors.background,
-    color: colors.textPrimary,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.surfaceBorder,
     fontSize: 17,
+  },
+  saveButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 2,
+  },
+  saveText: {
+    color: colors.white,
+    fontWeight: "600",
+    fontSize: 17,
+  },
+  disabledText: {
+    opacity: 0.5,
   },
 });

@@ -12,6 +12,7 @@ import Animated, {
     useSharedValue,
     withSpring,
     withTiming,
+    type SharedValue,
 } from "react-native-reanimated";
 
 type Props = {
@@ -23,6 +24,7 @@ type Props = {
   recordingDurationMs?: number;
   levels?: number[];
   allLevels?: number[];
+  metering?: SharedValue<number>;
   getPlaybackSoundAsync?: () => Promise<any | null>;
   skipInitialAnimation?: boolean;
   hasStagedMedia?: boolean;
@@ -44,6 +46,7 @@ export default function AudioRecordingBottomBar({
   recordingDurationMs = 0,
   levels,
   allLevels,
+  metering,
   getPlaybackSoundAsync,
   skipInitialAnimation = false,
   hasStagedMedia = false,
@@ -497,7 +500,7 @@ export default function AudioRecordingBottomBar({
                 accessibilityLabel="Pause recording"
               >
                 <Animated.View style={[styles.waveformFullWidth, waveformAnimatedStyle]}>
-                  <AudioWaveform isPaused={false} levels={levels} allLevels={allLevels} />
+                  <AudioWaveform isPaused={false} levels={levels} allLevels={allLevels} metering={metering} />
                 </Animated.View>
               </Pressable>
             </>

@@ -25,8 +25,7 @@ export const FriendStorage = {
       nicknameCache = (nicknames as FriendNickname[] | null) || [];
       removedFriendsCache = (removed as string[] | null) || [];
       isInitialized = true;
-    } catch (error) {
-      console.error("Failed to initialize friend storage:", error);
+    } catch {
       nicknameCache = [];
       removedFriendsCache = [];
       isInitialized = true;
@@ -36,8 +35,7 @@ export const FriendStorage = {
   persistNicknames: async (): Promise<boolean> => {
     try {
       return await Storage.set(STORAGE_KEYS.FRIEND_NICKNAMES, nicknameCache);
-    } catch (error) {
-      console.error("Failed to persist friend nicknames:", error);
+    } catch {
       return false;
     }
   },
@@ -45,8 +43,7 @@ export const FriendStorage = {
   persistRemovedFriends: async (): Promise<boolean> => {
     try {
       return await Storage.set(STORAGE_KEYS.REMOVED_FRIENDS, removedFriendsCache);
-    } catch (error) {
-      console.error("Failed to persist removed friends:", error);
+    } catch {
       return false;
     }
   },

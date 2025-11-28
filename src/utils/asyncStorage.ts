@@ -21,8 +21,7 @@ export const Storage = {
     try {
       const value = await AsyncStorage.getItem(finalKey);
       return value ? JSON.parse(value) : null;
-    } catch (error) {
-      console.error(`Error reading ${finalKey}:`, error);
+    } catch {
       return null;
     }
   },
@@ -32,8 +31,7 @@ export const Storage = {
     try {
       await AsyncStorage.setItem(finalKey, JSON.stringify(value));
       return true;
-    } catch (error) {
-      console.error(`Error saving ${finalKey}:`, error);
+    } catch {
       return false;
     }
   },
@@ -43,8 +41,7 @@ export const Storage = {
     try {
       await AsyncStorage.removeItem(finalKey);
       return true;
-    } catch (error) {
-      console.error(`Error removing ${finalKey}:`, error);
+    } catch {
       return false;
     }
   },
